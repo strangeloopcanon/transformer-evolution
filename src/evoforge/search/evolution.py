@@ -35,6 +35,7 @@ class EvolutionConfig:
         default_factory=lambda: ASHAConfig(min_steps=20, max_steps=80, reduction_factor=2)
     )
     pdh: PDHConfig = field(default_factory=lambda: PDHConfig(base_steps=60, max_stages=2))
+    immigrants: int = 2
 
 
 def _prune_none(value):
@@ -108,7 +109,8 @@ def run_evolution(
         next_gen: List[EvolutionCandidate] = []
         next_gen.extend(parents)
 
-        while len(next_gen) < evo_cfg.population_size:
+        # Children from mutations
+        while len(next_gen) < max(0, evo_cfg.population_size - evo_cfg.immigrants):
             parent = rng.choice(parents)
             variants = generate_mutations(parent.config, rng=rng)
             if not variants:
@@ -117,6 +119,17 @@ def run_evolution(
             variant_path = gen_dir / f"variant_{len(next_gen)}.yaml"
             _write_config(variant_cfg, variant_path)
             next_gen.append(EvolutionCandidate(path=variant_path, config=variant_cfg))
+
+        # Random immigrants from original seeds to maintain diversity
+        for i in range(evo_cfg.immigrants):
+            base = rng.choice(seed_paths)
+            base_cfg = load_validate_yaml(base)
+            # Optionally mutate once to avoid duplicates
+            muts = generate_mutations(base_cfg, rng=rng)
+            immigrant_cfg = rng.choice(muts) if muts else base_cfg
+            immigrant_path = gen_dir / f"immigrant_{i}.yaml"
+            _write_config(immigrant_cfg, immigrant_path)
+            next_gen.append(EvolutionCandidate(path=immigrant_path, config=immigrant_cfg))
 
         population = next_gen
 

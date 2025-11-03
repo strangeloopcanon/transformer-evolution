@@ -217,7 +217,20 @@ def _toggle_latent_sampler(cfg: DSLConfig) -> Optional[DSLConfig]:
         attn = Mixer(kind="Attention", heads=heads)
         mix_unit = MixUnit(kind="single", mixer=attn)
         clone.arch.modules["latent_sampler"] = ModuleSpec(kind="latent_sampler", mix_unit=mix_unit)
-        clone.arch.pipeline.append(PipelineStage(name="latent_sampler_auto", module="latent_sampler"))
+        # Insert after the first non-embedding stage if present, else after stage 0
+        insert_after = 0
+        for i, st in enumerate(clone.arch.pipeline):
+            if st.kind and st.kind != "embedding":
+                insert_after = i
+                break
+        # Wire latent sampler to the previous stage output
+        input_stage = clone.arch.pipeline[insert_after].name if clone.arch.pipeline else None
+        latent_stage = PipelineStage(
+            name="latent_sampler_auto",
+            module="latent_sampler",
+            inputs=[input_stage] if input_stage else None,
+        )
+        clone.arch.pipeline.insert(insert_after + 1, latent_stage)
     run_additional_checks(clone)
     return clone
 

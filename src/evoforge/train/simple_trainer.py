@@ -195,6 +195,18 @@ def run_micro_train(
         metrics["tokens_per_sec"] = float(tokens_per_sec)
         metrics["total_tokens"] = int(total_tokens)
         metrics["total_flops"] = float(total_flops)
+        # Collect router stats if present
+        router_stats = []
+        try:
+            for m in model.modules():
+                if hasattr(m, "router_stats"):
+                    rs = m.router_stats()
+                    if rs:
+                        router_stats.append(rs)
+        except Exception:
+            pass
+        if router_stats:
+            metrics["router"] = router_stats
         metadata["metrics"] = metrics
 
         return TrainResult(

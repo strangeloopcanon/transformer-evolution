@@ -24,6 +24,7 @@ def main() -> int:
     parser.add_argument("--asha-reduction", type=int, default=2)
     parser.add_argument("--pdh-base", type=int, default=60)
     parser.add_argument("--pdh-stages", type=int, default=2)
+    parser.add_argument("--immigrants", type=int, default=2)
     args = parser.parse_args()
 
     seeds = []
@@ -53,6 +54,7 @@ def main() -> int:
             base_steps=args.pdh_base,
             max_stages=args.pdh_stages,
         ),
+        immigrants=args.immigrants,
     )
 
     archive = run_evolution(seeds, args.output, evo_cfg=evo_cfg)
