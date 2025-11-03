@@ -41,13 +41,19 @@ The best architecture (`gen_7/variant_7`) is an evolved Free Transformer pipelin
 
 ```mermaid
 flowchart TD
-    E[Embeddings + RoPE (dims=128)] --> ENC[Encoder: non-causal attention, 4 layers]
-    ENC --> LAT[Latent sampler: FiLM + LoRA r=4]
+    E["Embeddings + RoPE (dims=128)"]
+    ENC["Encoder (non-causal attention, 4 layers)"]
+    LAT["Latent sampler (FiLM + LoRA r=4)"]
+    DECLOW["Decoder lower:\nrouter top-k=2\nlocal attention (window 1024)\nretention chunk 1024\nSSM d_state=32"]
+    DECUP["Decoder upper (attention with RMS QK-norm)"]
+    OUT["Readout"]
+    E --> ENC
+    ENC --> LAT
     ENC --> DECLOW
     LAT --> DECLOW
-    DECLOW[Decoder lower: router top-k=2; local attention (window 1024); retention chunk 1024; SSM d_state=32] --> DECUP
+    DECLOW --> DECUP
     LAT --> DECUP
-    DECUP[Decoder upper: attention with RMS QK-norm] --> OUT[Readout]
+    DECUP --> OUT
 ```
 
 * Lower decoder keeps a windowed KV cache (`window=8192`, `nf4` quantisation).
