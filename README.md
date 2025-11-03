@@ -1,8 +1,8 @@
-# EvoForge Search Toolkit
+# Transformer Evolution Toolkit
 
 ## Objective
 
-EvoForge lets us describe Transformer-family architectures in a single DSL, mutate them, and evaluate candidates automatically. The current goal is to run evolutionary sweeps (ASHA for breadth, PDH for depth) over that DSL and surface high-quality pipeline designs such as Free Transformer variants.
+Transformer Evolution lets us describe Transformer-family architectures in a single DSL, mutate them, and evaluate candidates automatically. The current goal is to run evolutionary sweeps (ASHA for breadth, PDH for depth) over that DSL and surface high-quality pipeline designs such as Free Transformer variants.
 
 ## Setup
 
