@@ -61,6 +61,15 @@ flowchart TD
 * Router balances attention, retention, and SSM experts with temperature 0.7.
 * Upper decoder relies on standard causal attention with RMS QK-norm.
 
+### Variant_9 vs. "Attention Is All You Need"
+
+- **Latent sampler:** adds a FiLM + LoRA latent path (H=16) that modulates every decoder block; the Vaswani baseline has no learned latent conditioning.
+- **Grouped-query attention + local windows:** uses per-head KV (groups=heads) and windowed attention in the lower decoder to cut KV memory; the baseline keeps full MHA everywhere.
+- **Mixture-of-architectures:** decoder_lower routes across Attention/Retention/SSM experts with top-k gating, extending contextual memory; baseline decoder is attention-only.
+- **Structured KV policy:** windowed + NF4-quantised cache vs. baseline’s full-precision KV store.
+- **Normalization upgrades:** RMSNorm throughout and explicit QK-norm in the upper decoder for stability, replacing the baseline’s LayerNorm + raw QK.
+- **RoPE + YaRN scaling:** rotates embeddings with NTK/YaRN scaling to support 8k contexts, whereas the baseline used learned/sinusoidal positional encodings.
+
 ## Next Steps
 
 * Improve mixer fidelity further (GPU-friendly Retention/SSM kernels with state reuse).
