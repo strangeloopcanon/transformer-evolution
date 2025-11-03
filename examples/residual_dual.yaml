@@ -1,0 +1,12 @@
+arch:
+  d_model: 512
+  n_layers: 24
+  norm: RMSNorm
+  residual: { kind: "dual", pre_ln: true, post_ln: true, scale: 0.7 }
+  mix_unit:
+    kind: "single"
+    mixer: { kind: "Attention", heads: 8, groups: 4, stencil: { kind: "full" }, softmax: { qk_norm: "rms" } }
+  ffn: { kind: "dense", mult: 3.0, act: "swiglu" }
+  pos: { kind: "rope", rope: { theta: 10000, dims: 64 } }
+train: { ctx_len: 1024, dtype: fp16 }
+

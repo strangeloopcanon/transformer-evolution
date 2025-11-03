@@ -1,0 +1,14 @@
+arch:
+  d_model: 512
+  n_layers: 12
+  norm: RMSNorm
+  mix_unit:
+    kind: "par"
+    merge: "Add"
+    choices:
+      - { kind: "Attention", heads: 8, groups: 4, pos: "alibi", stencil: { kind: "local", window: 1024 } }
+      - { kind: "Retention", heads: 8, chunk: 1024, mode: "parallel" }
+  ffn: { kind: "dense", mult: 2.0, act: "swiglu" }
+  pos: { kind: "alibi" }
+train: { ctx_len: 4096, dtype: fp16 }
+

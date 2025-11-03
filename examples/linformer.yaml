@@ -1,0 +1,16 @@
+arch:
+  d_model: 384
+  n_layers: 8
+  norm: LayerNorm
+  mix_unit:
+    kind: "single"
+    mixer:
+      kind: "Attention"
+      heads: 6
+      groups: 6
+      projection: { type: "low_rank", rank: 128, shared: true }
+      softmax: { type: "standard", qk_scale: "sqrt_d" }
+  ffn: { kind: "dense", mult: 4.0, act: "gelu" }
+  pos: { kind: "rope", rope: { theta: 10000, dims: 48 } }
+train: { ctx_len: 2048, dtype: fp16 }
+

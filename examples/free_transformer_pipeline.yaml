@@ -1,0 +1,76 @@
+arch:
+  d_model: 640
+  n_layers: 8
+  norm: RMSNorm
+  mix_unit:
+    kind: "single"
+    mixer: { kind: "Attention", heads: 8, groups: 2, stencil: { kind: "full" } }
+  ffn: { kind: "dense", mult: 3.5, act: "swiglu" }
+  pos: { kind: "rope", rope: { theta: 25000, dims: 128, scaling: { type: "yarn", factor: 1.5 } } }
+  modules:
+    embeddings:
+      kind: "embedding"
+      params: { vocab_size: 65536 }
+      budget: { tokens_per_step: 65536, flops_per_token: 0.0, latency_ms: 0.1 }
+    encoder_noncausal:
+      kind: "transformer"
+      d_model: 640
+      n_layers: 4
+      mix_unit:
+        kind: "single"
+        mixer: { kind: "Attention", heads: 8, groups: 2, stencil: { kind: "full" }, pos: "rope" }
+      ffn: { kind: "dense", mult: 3.0, act: "swiglu" }
+      norm: RMSNorm
+      pos: { kind: "rope", rope: { theta: 25000, dims: 128 } }
+    latent_sampler:
+      kind: "latent_sampler"
+      cond:
+        source: { kind: "pool-mlp", H: 16 }
+        reg: { kind: "freebits", kappa: 0.5 }
+        ops:
+          - { where: "pre_mixer", op: "film", share: "per_channel" }
+          - { where: "proj_q", op: "lora", r: 4 }
+      params: { latent_dim: 256 }
+    decoder_lower:
+      kind: "transformer"
+      d_model: 640
+      n_layers: 2
+      mix_unit:
+        kind: "route"
+        choices:
+          - { kind: "Attention", heads: 8, groups: 2, stencil: { kind: "local", window: 1024 }, pos: "rope" }
+          - { kind: "Retention", heads: 8, chunk: 1024, mode: "parallel" }
+          - { kind: "SSM", d_state: 32, expand: 2.0 }
+        router: { topk: 2, temp: 0.7, balance: 0.01 }
+        merge: "Add"
+      ffn: { kind: "dense", mult: 3.5, act: "swiglu" }
+      norm: RMSNorm
+      pos: { kind: "rope", rope: { theta: 25000, dims: 128 } }
+      kv_policy: { cache: "window", window: 8192, quant: "nf4" }
+      budget: { tokens_per_step: 8192, flops_per_token: 2500000.0 }
+    decoder_upper:
+      kind: "transformer"
+      d_model: 640
+      n_layers: 2
+      mix_unit:
+        kind: "single"
+        mixer: { kind: "Attention", heads: 8, groups: 2, stencil: { kind: "full" }, softmax: { qk_norm: "rms" }, pos: "rope" }
+      ffn: { kind: "dense", mult: 3.5, act: "swiglu" }
+      norm: RMSNorm
+      pos: { kind: "rope", rope: { theta: 25000, dims: 128 } }
+      kv_policy: { cache: "window", window: 8192, quant: "nf4" }
+    readout:
+      kind: "readout"
+      output_dim: 65536
+  pipeline:
+    - { name: embeddings, module: embeddings, kind: "embedding" }
+    - { name: encoder, module: encoder_noncausal, repeat: 1, mode: "train_prefill" }
+    - { name: latent, module: latent_sampler, inputs: ["encoder"], mode: "train_prefill" }
+    - { name: decoder_lower, module: decoder_lower, repeat: 1, kv_from: ["encoder"] }
+    - { name: decoder_upper, module: decoder_upper, repeat: 1, kv_from: ["decoder_lower", "latent"] }
+    - { name: readout, module: readout, inputs: ["decoder_upper"] }
+train:
+  ctx_len: 8192
+  dtype: fp16
+  vocab_size: 65536
+  budget: { tokens_per_step: 8192, max_steps: 2000, flops_per_step: 500000000000.0 }

@@ -1,0 +1,15 @@
+arch:
+  d_model: 768
+  n_layers: 10
+  norm: LayerNorm
+  mix_unit:
+    kind: "single"
+    mixer: { kind: "Attention", heads: 12, groups: 12, stencil: { kind: "full" }, pos: "rope" }
+  ffn: { kind: "dense", mult: 4.0, act: "relu" }
+  pos: { kind: "rope", rope: { theta: 10000, dims: 128, scaling: { type: "ntk", factor: 1.0 } } }
+  kv_policy: { cache: "full" }
+train:
+  ctx_len: 512
+  dtype: fp16
+  vocab_size: 32000
+  budget: { tokens_per_step: 32768, max_steps: 500, flops_per_step: 650000000000.0 }

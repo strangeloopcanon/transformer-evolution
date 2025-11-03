@@ -1,0 +1,12 @@
+arch:
+  d_model: 320
+  n_layers: 12
+  norm: RMSNorm
+  mix_unit:
+    kind: "single"
+    mixer: { kind: "Attention", heads: 8, groups: 4, stencil: { kind: "local", window: 256 } }
+  ffn: { kind: "dense", mult: 3.0, act: "swiglu" }
+  pos: { kind: "rope", rope: { theta: 10000, dims: 48 } }
+  depth_router: { kind: "token", budget: 0.65, tau: 0.7, min_layers: 4 }
+train: { ctx_len: 4096, dtype: fp16 }
+

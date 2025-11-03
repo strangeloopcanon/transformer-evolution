@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "evoforge"
+version = "0.0.1"
+description = "Compute-aware transformer DSL and tooling"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = []
+
+[tool.black]
+line-length = 100
+target-version = ["py39"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+lint.select = ["E","F","I","W","B","UP"]
+
+[tool.mypy]
+python_version = "3.9"
+strict = false
+warn_unused_configs = true
+ignore_missing_imports = true
+

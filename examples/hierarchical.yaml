@@ -1,0 +1,15 @@
+arch:
+  d_model: 512
+  n_layers: 24
+  norm: RMSNorm
+  mix_unit:
+    kind: "single"
+    mixer: { kind: "Attention", heads: 8, groups: 4, stencil: { kind: "sliding", window: 512, stride: 128 } }
+  ffn: { kind: "dense", mult: 3.5, act: "swiglu" }
+  pos: { kind: "rope", rope: { theta: 12000, dims: 64 } }
+  hierarchy:
+    levels:
+      - { every: 4, downsample: 0.5, up_proj: false }
+      - { every: 8, downsample: 0.25, up_proj: true }
+train: { ctx_len: 8192, dtype: fp16 }
+

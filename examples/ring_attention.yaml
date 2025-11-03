@@ -1,0 +1,17 @@
+arch:
+  d_model: 640
+  n_layers: 12
+  norm: RMSNorm
+  mix_unit:
+    kind: "single"
+    mixer:
+      kind: "Attention"
+      heads: 8
+      groups: 4
+      stencil: { kind: "ring", block: 512, stride: 128 }
+      softmax: { qk_norm: "layer" }
+  ffn: { kind: "dense", mult: 3.5, act: "swiglu" }
+  pos: { kind: "rope", rope: { theta: 20000, dims: 64, scaling: { type: "longrope", factor: 1.5, longrope: { alpha: 1.5, beta: 1.1 } } } }
+  kv_policy: { cache: "ring", window: 16384, quant: "fp8" }
+train: { ctx_len: 65536, dtype: fp16 }
+

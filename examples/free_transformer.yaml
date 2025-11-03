@@ -1,0 +1,26 @@
+arch:
+  d_model: 640
+  n_layers: 8
+  norm: RMSNorm
+  mix_unit:
+    kind: "route"
+    choices:
+      - { kind: "Attention", heads: 8, groups: 2, pos: "rope", stencil: { kind: "local", window: 1024 } }
+      - { kind: "Retention", heads: 8, chunk: 1024, mode: "parallel" }
+      - { kind: "SSM", d_state: 32, expand: 2.0 }
+    router: { topk: 2, temp: 0.7, balance: 0.01 }
+    merge: "Add"
+  ffn: { kind: "dense", mult: 3.5, act: "swiglu" }
+  pos: { kind: "rope", rope: { theta: 25000, dims: 128, scaling: { type: "yarn", factor: 1.5 } } }
+  cond:
+    source: { kind: "pool-mlp", H: 16 }
+    reg: { kind: "freebits", kappa: 0.5 }
+    ops:
+      - { where: "pre_mixer", op: "film", share: "per_channel" }
+      - { where: "proj_q", op: "lora", r: 4 }
+  kv_policy: { cache: "window", window: 8192, quant: "nf4" }
+train:
+  ctx_len: 8192
+  dtype: fp16
+  vocab_size: 65536
+

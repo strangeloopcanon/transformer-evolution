@@ -1,0 +1,19 @@
+arch:
+  d_model: 512
+  n_layers: 18
+  norm: RMSNorm
+  mix_unit:
+    kind: "single"
+    mixer: { kind: "Attention", heads: 8, groups: 8, stencil: { kind: "sliding", window: 256, stride: 64 }, pos: "rope" }
+  ffn: { kind: "dense", mult: 3.2, act: "swiglu" }
+  pos: { kind: "rope", rope: { theta: 12000, dims: 64 } }
+  hierarchy:
+    levels:
+      - { every: 3, downsample: 0.5 }
+      - { every: 6, downsample: 0.25, up_proj: true }
+  depth_router: { kind: "token", budget: 0.6, tau: 0.7, min_layers: 3 }
+train:
+  ctx_len: 4096
+  dtype: fp16
+  vocab_size: 32000
+  budget: { tokens_per_step: 49152, max_steps: 600, flops_per_step: 750000000000.0 }

@@ -1,0 +1,13 @@
+arch:
+  d_model: 512
+  n_layers: 12
+  norm: RMSNorm
+  mix_unit:
+    kind: "single"
+    mixer: { kind: "Attention", heads: 8, groups: 4, pos: "rope", stencil: { kind: "full" } }
+  ffn: { kind: "dense", mult: 2.0, act: "swiglu" }
+  pos: { kind: "rope", rope: { theta: 10000, dims: 64, scaling: { type: "ntk", factor: 1.0 } } }
+  kv_policy: { cache: "full" }
+train: { ctx_len: 2048, dtype: fp16 }
+budget: { params_target: 60000000, flops_target: "match:baseline" }
+

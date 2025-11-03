@@ -1,0 +1,14 @@
+arch:
+  d_model: 256
+  n_layers: 8
+  norm: RMSNorm
+  mix_unit:
+    kind: "single"
+    mixer: { kind: "Attention", heads: 8, groups: 8, pos: "rope" }
+  ffn: { kind: "dense", mult: 4.0, act: "gelu" }
+  pos: { kind: "rope", rope: { theta: 10000, dims: 64, scaling: { type: "ntk", factor: 1.0 } } }
+train:
+  ctx_len: 512
+  dtype: fp16
+  vocab_size: 128
+  budget: { tokens_per_step: 32768, max_steps: 500, flops_per_step: 250000000000.0 }
