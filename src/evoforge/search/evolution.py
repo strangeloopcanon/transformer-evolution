@@ -31,8 +31,10 @@ class EvolutionConfig:
     seq_len: int = 128
     batch_size: int = 4
     device: Optional[str] = None
-    asha: ASHAConfig = ASHAConfig(min_steps=20, max_steps=80, reduction_factor=2)
-    pdh: PDHConfig = PDHConfig(base_steps=60, max_stages=2)
+    asha: ASHAConfig = field(
+        default_factory=lambda: ASHAConfig(min_steps=20, max_steps=80, reduction_factor=2)
+    )
+    pdh: PDHConfig = field(default_factory=lambda: PDHConfig(base_steps=60, max_stages=2))
 
 
 def _prune_none(value):

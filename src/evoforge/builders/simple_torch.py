@@ -9,6 +9,8 @@ import torch.nn as nn
 from evoforge.dsl.errors import DSLValidationError
 from evoforge.dsl.models import DSLConfig
 
+from .utils import summarize_architecture
+
 
 class RMSNorm(nn.Module):
     def __init__(self, dim: int, eps: float = 1e-6) -> None:
@@ -188,6 +190,7 @@ class BuildMetadata:
     max_seq_len: int
     dim: int
     n_layers: int
+    extras: Optional[Dict[str, object]] = None
 
 
 def _check_supported(cfg: DSLConfig) -> Tuple[int, int, int, float, str]:
@@ -239,5 +242,6 @@ def build_simple_model(
         max_seq_len=ctx_len,
         dim=dim,
         n_layers=n_layers,
+        extras=summarize_architecture(cfg),
     )
     return model, meta

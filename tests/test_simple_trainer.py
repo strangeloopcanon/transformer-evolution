@@ -17,6 +17,12 @@ def test_run_micro_train_smoke(tmp_path):
     assert result.tokens_per_sec > 0
     assert result.total_tokens == 2 * 2 * 32
     assert result.total_flops > 0
+    assert "metrics" in result.metadata
+    metrics = result.metadata["metrics"]
+    assert "loss_final" in metrics
+    assert "ece" in metrics
+    arch_meta = result.metadata.get("architecture", {})
+    assert isinstance(arch_meta, dict)
 
 
 def test_run_micro_train_budget_guard(tmp_path):

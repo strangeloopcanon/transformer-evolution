@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Dict, Iterable, List, Optional
 
+from evoforge.dsl.errors import DSLValidationError
 from evoforge.dsl.models import DSLConfig
 from evoforge.train.simple_trainer import TrainResult, run_micro_train
 
@@ -37,6 +38,14 @@ class ASHAStats:
 ScoreFn = Callable[[TrainResult], float]
 
 DEFAULT_SCORE_FN: ScoreFn = lambda result: result.loss_history[-1]
+
+
+def _compute_qpc(result: TrainResult) -> float:
+    if not result.loss_history:
+        return float("nan")
+    if result.total_flops <= 0:
+        return float("nan")
+    return (result.loss_history[0] - result.loss_history[-1]) / result.total_flops
 
 
 def _run_candidate(candidate: Candidate, steps: int, *, device: Optional[str], seq_len: int, batch_size: int) -> TrainResult:
@@ -79,24 +88,38 @@ def run_asha(
         for milestone in milestones:
             results = []
             for candidate in bucket:
-                result = _run_candidate(
-                    candidate,
-                    steps=milestone,
-                    device=device,
-                    seq_len=seq_len,
-                    batch_size=batch_size,
-                )
-                candidate.result = result
-                candidate.score = score_fn(result)
-                evaluated += 1
-                history.append(
-                    {
+                try:
+                    result = _run_candidate(
+                        candidate,
+                        steps=milestone,
+                        device=device,
+                        seq_len=seq_len,
+                        batch_size=batch_size,
+                    )
+                    candidate.result = result
+                    candidate.score = score_fn(result)
+                    history_entry = {
                         "cfg_path": str(candidate.cfg_path),
                         "steps": milestone,
                         "score": candidate.score,
                         "tokens": candidate.result.total_tokens,
+                        "loss_start": result.loss_history[0] if result.loss_history else None,
+                        "loss_final": result.loss_history[-1] if result.loss_history else None,
+                        "qpc": _compute_qpc(result),
+                        "metrics": result.metadata.get("metrics", {}),
                     }
-                )
+                except DSLValidationError as err:
+                    candidate.result = None
+                    candidate.score = math.inf
+                    history_entry = {
+                        "cfg_path": str(candidate.cfg_path),
+                        "steps": milestone,
+                        "score": candidate.score,
+                        "tokens": 0,
+                        "error": str(err),
+                    }
+                evaluated += 1
+                history.append(history_entry)
                 results.append(candidate)
             results.sort(key=lambda c: c.score)
             survivors = math.floor(len(results) / asha_cfg.reduction_factor)

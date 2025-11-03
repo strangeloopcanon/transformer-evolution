@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Dict, Iterable, List, Optional
 
+from evoforge.dsl.errors import DSLValidationError
 from evoforge.train.simple_trainer import TrainResult, run_micro_train
 
 
@@ -49,23 +50,33 @@ class ProgressiveDynamicHurdles:
         best_score = math.inf
 
         for stage in range(self.cfg.max_stages):
-            result = run_micro_train(
-                cfg_path,
-                steps=steps,
-                device=self.device,
-                seq_len=self.seq_len,
-                batch_size=self.batch_size,
-            )
-            score = self.score_fn(result)
+            error_msg: Optional[str] = None
+            try:
+                result = run_micro_train(
+                    cfg_path,
+                    steps=steps,
+                    device=self.device,
+                    seq_len=self.seq_len,
+                    batch_size=self.batch_size,
+                )
+                score = self.score_fn(result)
+            except DSLValidationError as err:
+                result = None
+                score = math.inf
+                error_msg = str(err)
             state.history.append(
                 {
                     "stage": stage,
                     "steps": steps,
                     "score": score,
-                    "tokens": result.total_tokens,
-                    "flops": result.total_flops,
+                    "tokens": result.total_tokens if result else 0,
+                    "flops": result.total_flops if result else 0.0,
+                    "error": error_msg,
                 }
             )
+            if score == math.inf:
+                state.hurdles.append(state.hurdles[-1] if state.hurdles else math.inf)
+                break
             hurdle = score if not state.hurdles else min(state.hurdles[-1], score)
             state.hurdles.append(hurdle)
             if score < best_score:

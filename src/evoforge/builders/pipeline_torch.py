@@ -5,7 +5,6 @@ from typing import Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 from evoforge.dsl.errors import DSLValidationError
 from evoforge.dsl.models import (
@@ -18,6 +17,7 @@ from evoforge.dsl.models import (
 )
 
 from .simple_torch import BuildMetadata, build_ffn, build_norm
+from .utils import summarize_architecture
 
 
 def _pick_attention_mixer(mix_unit: MixUnit) -> Mixer:
@@ -147,18 +147,28 @@ class AttentionMixerModule(nn.Module):
 class RetentionMixerModule(nn.Module):
     def __init__(self, dim: int, chunk: Optional[int] = None, mode: Optional[str] = None) -> None:
         super().__init__()
-        self.decay = nn.Parameter(torch.zeros(dim))
-        self.chunk = chunk or 256
+        self.chunk = max(1, chunk or 256)
         self.mode = mode or "parallel"
+        self.input_proj = nn.Linear(dim, dim, bias=False)
+        self.output_proj = nn.Linear(dim, dim, bias=False)
+        self.decay = nn.Parameter(torch.zeros(dim))
+        self.bias = nn.Parameter(torch.zeros(dim))
+        self._last_state: Optional[torch.Tensor] = None
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        decay = torch.sigmoid(self.decay).view(1, -1)
-        state = torch.zeros_like(x[:, 0, :])
+        batch, seq_len, dim = x.shape
+        decay = torch.sigmoid(self.decay).view(1, dim)
+        state = torch.zeros(batch, dim, device=x.device, dtype=x.dtype)
         outputs = []
-        for t in range(x.size(1)):
-            state = decay * x[:, t, :] + (1.0 - decay) * state
-            outputs.append(state.unsqueeze(1))
-        return torch.cat(outputs, dim=1)
+        projected = self.input_proj(x)
+        for start in range(0, seq_len, self.chunk):
+            segment = projected[:, start : start + self.chunk, :]
+            for t in range(segment.size(1)):
+                state = decay * state + (1.0 - decay) * segment[:, t, :]
+                outputs.append(state.unsqueeze(1))
+        self._last_state = state.detach()
+        stacked = torch.cat(outputs, dim=1)
+        return self.output_proj(stacked) + self.bias.view(1, 1, -1)
 
 
 class ConvMixerModule(nn.Module):
@@ -179,6 +189,33 @@ class ConvMixerModule(nn.Module):
         return y
 
 
+class StateSpaceMixerModule(nn.Module):
+    def __init__(self, dim: int, d_state: Optional[int] = None, expand: Optional[float] = None) -> None:
+        super().__init__()
+        base_state = d_state or max(4, dim // 4)
+        expand = expand or 1.0
+        state_dim = max(1, int(base_state * expand))
+        self.state_dim = state_dim
+        self.A = nn.Parameter(torch.zeros(state_dim))
+        self.B = nn.Linear(dim, state_dim)
+        self.C = nn.Linear(state_dim, dim)
+        self.D = nn.Linear(dim, dim)
+        self._last_state: Optional[torch.Tensor] = None
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        batch, seq_len, _ = x.shape
+        state = torch.zeros(batch, self.state_dim, device=x.device, dtype=x.dtype)
+        A = torch.exp(self.A).view(1, self.state_dim)
+        outputs = []
+        for t in range(seq_len):
+            u = x[:, t, :]
+            state = torch.tanh(state * A + self.B(u))
+            y = self.C(state) + self.D(u)
+            outputs.append(y.unsqueeze(1))
+        self._last_state = state.detach()
+        return torch.cat(outputs, dim=1)
+
+
 class ValueGLUWrapper(nn.Module):
     def __init__(self, module: nn.Module, dim: int) -> None:
         super().__init__()
@@ -197,8 +234,7 @@ def build_single_mixer(mixer: Mixer, dim: int, causal: bool, max_seq_len: int) -
     elif mixer.kind == "Retention":
         module = RetentionMixerModule(dim, chunk=mixer.chunk, mode=mixer.mode)
     elif mixer.kind == "SSM":
-        kernel = max(3, (mixer.d_state or 4))
-        module = ConvMixerModule(dim, kernel)
+        module = StateSpaceMixerModule(dim, d_state=mixer.d_state, expand=mixer.expand)
     elif mixer.kind == "LongConv":
         kernel = mixer.kernel_len or 16
         module = ConvMixerModule(dim, kernel)
@@ -509,5 +545,6 @@ def build_pipeline_model(
         max_seq_len=cfg.train.ctx_len,
         dim=model.dim,
         n_layers=cfg.arch.n_layers,
+        extras=summarize_architecture(cfg),
     )
     return model, meta

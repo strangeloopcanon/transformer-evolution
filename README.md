@@ -30,20 +30,20 @@ Results (metrics, tokens, FLOPs) are written to `results/search_report.json`, an
 
 | Config | Loss@120 steps | QPC (Δloss/FLOPs) | Tokens/sec |
 | --- | --- | --- | --- |
-| `results/evolution/gen_7/variant_7.yaml` | **8.27e-5** | 5.30e-13 | 2.10k |
+| `results/evolution_overnight/gen_8/variant_9.yaml` | **1.14e-2** | 5.44e-13 | 2.05k |
+| `results/evolution/gen_7/variant_7.yaml` | 8.27e-5 | 5.30e-13 | 2.10k |
 | `results/evolution/gen_2/variant_4.yaml` | 1.70e-4 | 5.52e-13 | 2.17k |
-| `results/evolution/gen_8/variant_7.yaml` | 1.22e-4 | 5.46e-13 | 2.17k |
 | `configs/free_transformer_alt.yaml` | 2.30e-3 | 5.35e-13 | 2.05k |
 
-The best architecture (`gen_7/variant_7`) is an evolved Free Transformer pipeline: encoder → latent sampler → routed lower decoder (Attention/Retention/SSM mix, top‑k gating) → full-attention upper decoder with RMS QK-norm and windowed KV caching.
+The overnight sweep (10 generations, population 10 on MPS with CPU fallback) promoted `gen_8/variant_9` as the current frontier: still a Free Transformer skeleton, but with 9-way grouped query attention at the trunk, tighter RoPE (dims=32) in the shared positional core, and the routed lower decoder rebalanced across attention/retention/SSM experts. PDH deep-evaluation at 400 steps (`seq_len=256`, batch 6) finished with loss `1.17e-2`, ECE `3.2e-3`, and 0.998 accuracy on the calibration slice.
 
-### Architecture sketch (`gen_7/variant_7`)
+### Architecture sketch (`gen_8/variant_9`)
 
 ```mermaid
 flowchart TD
-    E["Embeddings + RoPE (dims=128)"]
-    ENC["Encoder (non-causal attention, 4 layers)"]
-    LAT["Latent sampler (FiLM + LoRA r=4)"]
+    E["Embeddings + RoPE (dims=32 core / 128 module)"]
+    ENC["Encoder (non-causal attention, 4 layers, GQA)"]
+    LAT["Latent sampler (FiLM + LoRA r=4, H=16)"]
     DECLOW["Decoder lower:\nrouter top-k=2\nlocal attention (window 1024)\nretention chunk 1024\nSSM d_state=32"]
     DECUP["Decoder upper (attention with RMS QK-norm)"]
     OUT["Readout"]
@@ -56,6 +56,7 @@ flowchart TD
     DECUP --> OUT
 ```
 
+* Trunk attention runs with grouped queries (`heads=9`, `groups=9`) and tightened shared RoPE dims (32 core) while module-specific RoPE stays at 128.
 * Lower decoder keeps a windowed KV cache (`window=8192`, `nf4` quantisation).
 * Router balances attention, retention, and SSM experts with temperature 0.7.
 * Upper decoder relies on standard causal attention with RMS QK-norm.
@@ -64,3 +65,11 @@ flowchart TD
 
 * Improve mixer fidelity further (GPU-friendly Retention/SSM kernels with state reuse).
 * Scale mutation/evolution runs (more generations, larger populations, periodic long budgets) once GPU resources are available.
+
+## Overnight Sweep Playbook
+
+- **Seed population**: `configs/free_transformer.yaml`, `configs/free_transformer_alt.yaml`, `examples/nanogpt_tiny.yaml`, plus evolved seeds in `results/evolution/gen_7/variant_7.yaml` and `results/evolution/gen_8/variant_7.yaml`.
+- **Stage B micro-distill**: start runs with `--seq-len 192 --batch-size 6`; this keeps budgets within the current CPU envelope.
+- **Deep promotions**: run `runners/run_experiment.py … --deep-steps 400 --deep-seq-len 256 --deep-batch-size 6 --deep-top-k 2` to re-evaluate the current Pareto front every few generations without touching earlier ASHA/PDH checkpoints.
+- **Variant_7 note**: promising steerability/coherence at fixed FLOPs, but latent usefulness and router stability remain open engineering risks—monitor FiLM/LoRA activations and gating entropy during long runs.
+- **MPS safety**: `run_micro_train` now retries on CPU if MPS throws (see `allow_fallback=True`), so overnight sweeps can run on GPU without babysitting. Logged history flags any invalid configs that ASHA pruned.

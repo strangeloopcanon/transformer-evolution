@@ -10,6 +10,7 @@ from typing import Dict, List
 from evoforge.search.asha import ASHAConfig
 from evoforge.search.pdh import PDHConfig
 from evoforge.search.runner import load_candidates, run_search
+from evoforge.train.simple_trainer import run_micro_train
 
 
 def compute_qpc(loss_history: List[float], total_flops: float) -> float:
@@ -30,6 +31,10 @@ def main() -> int:
     parser.add_argument("--asha-reduction", type=int, default=3)
     parser.add_argument("--pdh-base", type=int, default=20)
     parser.add_argument("--pdh-stages", type=int, default=3)
+    parser.add_argument("--deep-steps", type=int, default=0, help="If >0 run deep evaluations with this step budget")
+    parser.add_argument("--deep-seq-len", type=int, default=256)
+    parser.add_argument("--deep-batch-size", type=int, default=6)
+    parser.add_argument("--deep-top-k", type=int, default=1)
     args = parser.parse_args()
 
     cfg_paths: List[Path] = []
@@ -68,6 +73,7 @@ def main() -> int:
     for idx, state in enumerate(search_result.pdh_states):
         best = state.best or {}
         result = best.get("result")
+        metrics = result.metadata.get("metrics", {}) if result else {}
         entry = {
             "candidate_index": idx,
             "stages": state.history,
@@ -79,17 +85,68 @@ def main() -> int:
             "tokens_per_sec": result.tokens_per_sec if result else None,
             "total_tokens": result.total_tokens if result else None,
             "total_flops": result.total_flops if result else None,
+            "metrics": metrics,
+            "architecture": result.metadata.get("architecture") if result else None,
         }
         summary["candidates"].append(entry)
+
+    deep_results = []
+    if args.deep_steps > 0:
+        ranked = sorted(
+            enumerate(summary["candidates"]),
+            key=lambda item: item[1]["best_score"] if item[1]["best_score"] is not None else float("inf"),
+        )
+        for rank_idx, (cand_idx, cand_entry) in enumerate(ranked[: max(1, args.deep_top_k)]):
+            cfg_path = cfg_paths[cand_idx]
+            deep_result = run_micro_train(
+                cfg_path,
+                steps=args.deep_steps,
+                device=args.device,
+                seq_len=args.deep_seq_len,
+                batch_size=args.deep_batch_size,
+            )
+            metrics = deep_result.metadata.get("metrics", {})
+            deep_results.append(
+                {
+                    "candidate_index": cand_idx,
+                    "rank": rank_idx,
+                    "cfg_path": str(cfg_path),
+                    "steps": args.deep_steps,
+                    "seq_len": args.deep_seq_len,
+                    "batch_size": args.deep_batch_size,
+                    "loss_final": metrics.get("loss_final"),
+                    "qpc": compute_qpc(deep_result.loss_history, deep_result.total_flops),
+                    "metrics": metrics,
+                }
+            )
+        summary["deep_evaluations"] = deep_results
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(summary, indent=2))
     print(f"Wrote report to {args.output}")
     print("ASHA evaluated", summary["asha"]["evaluated"], "configs")
     for cand in summary["candidates"]:
+        metrics = cand.get("metrics") or {}
         print(
-            f"Candidate {cand['candidate_index']}: best_score={cand['best_score']} steps={cand['best_steps']} qpc={cand['qpc']} tokens={cand['total_tokens']}"
+            "Candidate {idx}: best_score={score} steps={steps} loss_final={loss} qpc={qpc} tokens={tokens}".format(
+                idx=cand["candidate_index"],
+                score=cand["best_score"],
+                steps=cand["best_steps"],
+                loss=metrics.get("loss_final"),
+                qpc=cand["qpc"],
+                tokens=cand["total_tokens"],
+            )
         )
+    if deep_results:
+        for deep in deep_results:
+            print(
+                "Deep eval cand {idx} (rank {rank}): loss_final={loss} qpc={qpc}".format(
+                    idx=deep["candidate_index"],
+                    rank=deep["rank"],
+                    loss=deep["loss_final"],
+                    qpc=deep["qpc"],
+                )
+            )
     return 0
 
 
