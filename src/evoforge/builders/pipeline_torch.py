@@ -283,11 +283,12 @@ class RouterMixerModule(nn.Module):
         self.router_proj = nn.Linear(dim, len(self.mixers))
         self.temperature = (mix_unit.router.temp if mix_unit.router else 1.0) or 1.0
         self.topk = mix_unit.router.topk if mix_unit.router and mix_unit.router.topk else None
-        self.balance = (mix_unit.router.balance if mix_unit.router else 0.0) or 0.0
+        self.balance = float((mix_unit.router.balance if mix_unit.router else 0.0) or 0.0)
         # stats accumulators
         self.register_buffer("_usage_sum", torch.zeros(len(self.mixers)), persistent=False)
         self.register_buffer("_entropy_sum", torch.zeros(1), persistent=False)
         self._usage_count: int = 0
+        self._collapsed: bool = False
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         scores = self.router_proj(x) / self.temperature
@@ -304,16 +305,25 @@ class RouterMixerModule(nn.Module):
             ent = -(mean_w * (mean_w.clamp_min(1e-8)).log()).sum()
             self._entropy_sum += ent.unsqueeze(0)
             self._usage_count += 1
+            self._collapsed = bool(mean_w.max().item() > 0.95)
         outputs = torch.stack([mixer(x) for mixer in self.mixers], dim=-2)  # (..., num_mixers, dim)
         weights = weights.unsqueeze(-1)
-        return (outputs * weights).sum(dim=-2)
+        mixed = (outputs * weights).sum(dim=-2)
+        # Aux loss: encourage balanced routing (maximize entropy)
+        if self.balance > 0.0:
+            with torch.no_grad():
+                mean_w = (weights.squeeze(-1)).mean(dim=(0, 1))  # (num_mixers,)
+            balance_loss = -(mean_w * (mean_w.clamp_min(1e-8)).log()).sum()
+            # stash auxiliary loss on module for trainer to consume
+            setattr(self, "_aux_loss", balance_loss * self.balance)
+        return mixed
 
     def router_stats(self) -> Optional[dict]:
         if self._usage_count == 0:
             return None
         usage = (self._usage_sum / float(self._usage_count)).detach().cpu().tolist()
         entropy = (self._entropy_sum.item() / float(self._usage_count))
-        return {"usage": usage, "entropy": entropy}
+        return {"usage": usage, "entropy": entropy, "collapsed": self._collapsed}
 
 
 def build_mix_module(mix_unit: MixUnit, dim: int, causal: bool, max_seq_len: int) -> nn.Module:

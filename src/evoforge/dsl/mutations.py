@@ -145,6 +145,25 @@ def _pipeline_rewire_mutation(cfg: DSLConfig) -> Optional[DSLConfig]:
     return clone
 
 
+def _add_cross_skip_mutation(cfg: DSLConfig) -> Optional[DSLConfig]:
+    if not cfg.arch.pipeline or len(cfg.arch.pipeline) < 3:
+        return None
+    clone = _clone(cfg)
+    stages = {s.name: s for s in clone.arch.pipeline}
+    # pick a later stage (not embedding) and add an input from an earlier one
+    later = clone.arch.pipeline[-2]
+    earlier = clone.arch.pipeline[1]
+    if later.kind == "embedding":
+        return None
+    inputs = list(later.inputs) if later.inputs else []
+    if earlier.name not in inputs:
+        inputs.append(earlier.name)
+        later.inputs = inputs
+        run_additional_checks(clone)
+        return clone
+    return None
+
+
 def _ensure_modules(clone: DSLConfig) -> None:
     if clone.arch.modules is None:
         clone.arch.modules = {}
@@ -244,7 +263,8 @@ MUTATORS: List[MutationFn] = [
    _router_topk_mutation,
    _local_window_mutation,
    _module_ffn_mutation,
-   _pipeline_rewire_mutation,
+    _pipeline_rewire_mutation,
+    _add_cross_skip_mutation,
     _add_memory_stage,
     _swap_to_route_mutation,
     _toggle_latent_sampler,

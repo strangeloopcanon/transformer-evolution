@@ -151,6 +151,19 @@ def run_micro_train(
             y = y.to(dev)
             logits = model(x)
             loss = F.cross_entropy(logits.view(-1, meta.vocab_size).float(), y.view(-1))
+            # Collect auxiliary losses (e.g., router balance)
+            aux_total = 0.0
+            for m in model.modules():
+                aux = getattr(m, "_aux_loss", None)
+                if aux is not None:
+                    try:
+                        aux_total = aux_total + float(aux.detach().cpu().item())
+                    except Exception:
+                        pass
+                    setattr(m, "_aux_loss", None)
+            if aux_total:
+                loss = loss + torch.tensor(aux_total, device=loss.device, dtype=loss.dtype)
+
             optim.zero_grad()
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), cfg.train.clip or 1.0)

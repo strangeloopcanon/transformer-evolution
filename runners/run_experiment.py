@@ -11,6 +11,7 @@ from evoforge.search.asha import ASHAConfig
 from evoforge.search.pdh import PDHConfig
 from evoforge.search.runner import load_candidates, run_search
 from evoforge.train.simple_trainer import run_micro_train
+from evoforge.eval.shocks import error_recovery_probe, niah_probe, spec_decode_probe
 
 
 def compute_qpc(loss_history: List[float], total_flops: float) -> float:
@@ -51,6 +52,7 @@ def main() -> int:
     asha_cfg = ASHAConfig(min_steps=args.asha_min, max_steps=args.asha_max, reduction_factor=args.asha_reduction)
     pdh_cfg = PDHConfig(base_steps=args.pdh_base, max_stages=args.pdh_stages)
 
+    print(f"[run] ASHA(min={args.asha_min}, max={args.asha_max}, r={args.asha_reduction}); PDH(base={args.pdh_base}, stages={args.pdh_stages})")
     search_result = run_search(
         cfg_paths,
         asha_config=asha_cfg,
@@ -106,6 +108,18 @@ def main() -> int:
                 batch_size=args.deep_batch_size,
             )
             metrics = deep_result.metadata.get("metrics", {})
+            # light shock probes
+            try:
+                import torch
+                # fabricate a small batch from deep seq length for probes
+                x = torch.randint(0, 256, (2, min(args.deep_seq_len, 128)))
+                shocks = {}
+                shocks.update(error_recovery_probe(deep_result, x, x))
+                shocks.update(niah_probe(deep_result))
+                shocks.update(spec_decode_probe(deep_result, x))
+                metrics["shocks"] = shocks
+            except Exception:
+                pass
             deep_results.append(
                 {
                     "candidate_index": cand_idx,
@@ -123,7 +137,7 @@ def main() -> int:
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(summary, indent=2))
-    print(f"Wrote report to {args.output}")
+    print(f"[run] Wrote report to {args.output}")
     print("ASHA evaluated", summary["asha"]["evaluated"], "configs")
     for cand in summary["candidates"]:
         metrics = cand.get("metrics") or {}
@@ -140,7 +154,7 @@ def main() -> int:
     if deep_results:
         for deep in deep_results:
             print(
-                "Deep eval cand {idx} (rank {rank}): loss_final={loss} qpc={qpc}".format(
+                "[deep] cand {idx} (rank {rank}): loss_final={loss} qpc={qpc}".format(
                     idx=deep["candidate_index"],
                     rank=deep["rank"],
                     loss=deep["loss_final"],
