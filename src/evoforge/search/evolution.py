@@ -9,7 +9,7 @@ from typing import Dict, List, Optional
 import yaml
 
 from evoforge.dsl.api import load_validate_yaml
-from evoforge.dsl.mutations import generate_mutations
+from evoforge.dsl.mutations import generate_macro_mutations, generate_mutations
 from evoforge.dsl.models import DSLConfig
 from evoforge.search.runner import run_search
 from evoforge.search.novelty import embed_architecture, novelty_score
@@ -173,7 +173,11 @@ def run_evolution(
                 variant_cfg = child
             else:
                 parent = rng.choice(parents)
-                variants = generate_mutations(parent.config, rng=rng)
+                # Occasionally apply a macro (radical) mutation composed of multiple edits
+                if rng.random() < 0.35:
+                    variants = generate_macro_mutations(parent.config, rng=rng, width=3)
+                else:
+                    variants = generate_mutations(parent.config, rng=rng)
                 if not variants:
                     break
                 variant_cfg = rng.choice(variants)

@@ -5,7 +5,22 @@ from typing import Callable, Iterable, List, Optional
 
 from .errors import DSLValidationError
 
-from .models import DSLConfig, MixUnit, Mixer, ModuleSpec, PipelineStage
+from .models import (
+    DSLConfig,
+    MixUnit,
+    Mixer,
+    ModuleSpec,
+    PipelineStage,
+    Router,
+    StencilConfig,
+    PosConfig,
+    PosRope,
+    RopeScaling,
+    KVPolicy,
+    HierarchyConfig,
+    HierarchyLevel,
+    DepthRouter,
+)
 from .validators import run_additional_checks
 
 
@@ -105,6 +120,68 @@ def _router_topk_mutation(cfg: DSLConfig) -> Optional[DSLConfig]:
     return clone
 
 
+def _stencil_toggle_mutation(cfg: DSLConfig) -> Optional[DSLConfig]:
+    """Flip between stencil families and set sensible defaults.
+
+    Chooses among: full, local, sliding, ring. Adds window/stride/block when needed.
+    """
+    choices = ["full", "local", "sliding", "ring"]
+    clone = _clone(cfg)
+    changed = False
+    for mixer in _iter_attention_mixers(clone):
+        new_kind = random.choice(choices)
+        st = mixer.stencil or StencilConfig()
+        st.kind = new_kind
+        if new_kind == "full":
+            st.window = None
+            st.stride = None
+            st.block = None
+        elif new_kind == "local":
+            st.window = max(128, int((st.window or 256)))
+            st.stride = None
+            st.block = None
+        elif new_kind == "sliding":
+            st.window = max(128, int((st.window or 256)))
+            st.stride = max(32, int((st.stride or 64)))
+            st.block = None
+        elif new_kind == "ring":
+            st.block = max(128, int((st.block or 256)))
+            st.stride = max(64, int((st.stride or 128)))
+            st.window = None
+        mixer.stencil = st
+        changed = True
+    if not changed:
+        return None
+    run_additional_checks(clone)
+    return clone
+
+
+def _pos_toggle_mutation(cfg: DSLConfig) -> Optional[DSLConfig]:
+    """Toggle positional encoding between rope and alibi; tweak rope settings."""
+    clone = _clone(cfg)
+    pos = clone.arch.pos
+    if pos.kind == "rope":
+        # Occasionally flip to alibi
+        if random.random() < 0.4:
+            clone.arch.pos = PosConfig(kind="alibi")
+        else:
+            rope = pos.rope or PosRope()
+            rope.dims = 32 if (rope.dims or 64) > 32 else 64
+            rope.theta = 12000.0 if (rope.theta or 10000.0) > 12000 else 25000.0
+            if random.random() < 0.5:
+                rope.scaling = RopeScaling(type="yarn", factor=1.5)
+            pos.rope = rope
+            clone.arch.pos = pos
+    else:
+        # Switch to rope with sensible defaults
+        rope = PosRope(theta=12000.0, dims=32)
+        if random.random() < 0.5:
+            rope.scaling = RopeScaling(type="yarn", factor=1.5)
+        clone.arch.pos = PosConfig(kind="rope", rope=rope)
+    run_additional_checks(clone)
+    return clone
+
+
 def _local_window_mutation(cfg: DSLConfig) -> Optional[DSLConfig]:
     clone = _clone(cfg)
     changed = False
@@ -116,6 +193,111 @@ def _local_window_mutation(cfg: DSLConfig) -> Optional[DSLConfig]:
             stencil.window = new_window
             changed = True
     if not changed:
+        return None
+    run_additional_checks(clone)
+    return clone
+
+
+def _add_or_mutate_hierarchy(cfg: DSLConfig) -> Optional[DSLConfig]:
+    """Add a two-level hierarchy when missing, or perturb existing schedule."""
+    clone = _clone(cfg)
+    if clone.arch.hierarchy is None:
+        levels = [
+            HierarchyLevel(every=3, downsample=0.5, up_proj=False),
+            HierarchyLevel(every=6, downsample=0.25, up_proj=True),
+        ]
+        clone.arch.hierarchy = HierarchyConfig(levels=levels)
+    else:
+        # Perturb levels
+        for lvl in clone.arch.hierarchy.levels:
+            if random.random() < 0.6:
+                lvl.every = max(1, int(lvl.every + random.choice([-1, 0, +1])))
+            if random.random() < 0.6 and lvl.downsample is not None:
+                lvl.downsample = max(
+                    0.25, min(0.75, round(lvl.downsample * random.choice([0.8, 1.0, 1.2]), 2))
+                )
+            if random.random() < 0.3 and lvl.up_proj is not None:
+                lvl.up_proj = not lvl.up_proj
+    run_additional_checks(clone)
+    return clone
+
+
+def _add_or_mutate_depth_router(cfg: DSLConfig) -> Optional[DSLConfig]:
+    """Inject a token-level depth router or tweak its budget/temperature."""
+    clone = _clone(cfg)
+    dr = clone.arch.depth_router
+    if dr is None or dr.kind == "none":
+        clone.arch.depth_router = DepthRouter(
+            kind="token",
+            budget=round(random.uniform(0.5, 0.8), 2),
+            tau=round(random.uniform(0.6, 0.9), 2),
+            min_layers=random.choice([2, 3, 4]),
+        )
+    else:
+        if dr.budget is not None and random.random() < 0.7:
+            dr.budget = max(0.2, min(0.95, round(dr.budget * random.choice([0.85, 1.0, 1.15]), 2)))
+        if dr.tau is not None and random.random() < 0.7:
+            dr.tau = max(0.3, min(1.5, round(dr.tau * random.choice([0.8, 1.0, 1.2]), 2)))
+        if dr.min_layers is not None and random.random() < 0.5:
+            dr.min_layers = max(0, dr.min_layers + random.choice([-1, 0, +1]))
+        clone.arch.depth_router = dr
+    run_additional_checks(clone)
+    return clone
+
+
+def _toggle_kv_policy(cfg: DSLConfig) -> Optional[DSLConfig]:
+    """Add or mutate a global KV policy for the arch."""
+    clone = _clone(cfg)
+    kv = clone.arch.kv_policy
+    if kv is None:
+        clone.arch.kv_policy = KVPolicy(
+            cache="window", window=random.choice([4096, 6144, 8192]), quant="nf4"
+        )
+    else:
+        # Flip quant or window size
+        if random.random() < 0.5:
+            kv.quant = random.choice(
+                ["nf4", "fp8", "int8", "none"]
+            )  # keep variety; validators accept these
+        if random.random() < 0.7:
+            w = kv.window or 4096
+            kv.window = max(1024, min(16384, int(w * random.choice([0.5, 1.0, 1.5]))))
+        clone.arch.kv_policy = kv
+    run_additional_checks(clone)
+    return clone
+
+
+def _toggle_to_par_mutation(cfg: DSLConfig) -> Optional[DSLConfig]:
+    """Switch single -> par with Attention + Retention (+optional SSM); or perturb existing par."""
+    mu = cfg.arch.mix_unit
+    clone = _clone(cfg)
+    heads = None
+    if mu.kind == "single" and mu.mixer:
+        heads = mu.mixer.heads or 8
+        attn = mu.mixer.model_copy(deep=True)
+        retn = Mixer(kind="Retention", heads=heads, chunk=512, mode="parallel")
+        choices = [attn, retn]
+        if random.random() < 0.6:
+            choices.append(Mixer(kind="SSM", heads=heads, d_state=16, expand=1.5))
+        clone.arch.mix_unit = MixUnit(
+            kind="par", choices=choices, merge=random.choice(["Add", "WeightedAdd"])
+        )
+    elif mu.kind == "par" and mu.choices:
+        # Probabilistically add/remove SSM or change merge
+        choices = [c.model_copy(deep=True) for c in mu.choices]
+        heads = choices[0].heads or 8
+        if random.random() < 0.5:
+            # toggle SSM presence
+            have_ssm = any(c.kind == "SSM" for c in choices)
+            if have_ssm:
+                choices = [c for c in choices if c.kind != "SSM"]
+            else:
+                choices.append(Mixer(kind="SSM", heads=heads, d_state=16, expand=1.5))
+        merge = mu.merge or "Add"
+        if random.random() < 0.5:
+            merge = "WeightedAdd" if merge == "Add" else "Add"
+        clone.arch.mix_unit = MixUnit(kind="par", choices=choices, merge=merge)
+    else:
         return None
     run_additional_checks(clone)
     return clone
@@ -219,7 +401,9 @@ def _swap_to_route_mutation(cfg: DSLConfig) -> Optional[DSLConfig]:
     choices = [base.model_copy(deep=True)]
     choices.append(Mixer(kind="Retention", heads=base.heads, chunk=512, mode="parallel"))
     choices.append(Mixer(kind="SSM", heads=base.heads, d_state=16, expand=1.5))
-    clone.arch.mix_unit = MixUnit(kind="route", choices=choices, merge="Add")
+    # router required for 'route'
+    router = Router(topk=max(1, (base.heads or 4) // 2), temp=0.7, balance=0.01)
+    clone.arch.mix_unit = MixUnit(kind="route", choices=choices, merge="Add", router=router)
     run_additional_checks(clone)
     return clone
 
@@ -230,7 +414,9 @@ def _toggle_latent_sampler(cfg: DSLConfig) -> Optional[DSLConfig]:
     _ensure_pipeline(clone)
     if clone.arch.modules and "latent_sampler" in clone.arch.modules:
         clone.arch.modules.pop("latent_sampler")
-        clone.arch.pipeline = [stage for stage in clone.arch.pipeline if stage.module != "latent_sampler"]
+        clone.arch.pipeline = [
+            stage for stage in clone.arch.pipeline if stage.module != "latent_sampler"
+        ]
     else:
         heads = clone.arch.mix_unit.mixer.heads if clone.arch.mix_unit.mixer else 4
         attn = Mixer(kind="Attention", heads=heads)
@@ -256,13 +442,19 @@ def _toggle_latent_sampler(cfg: DSLConfig) -> Optional[DSLConfig]:
 
 MUTATORS: List[MutationFn] = [
     lambda cfg: _heads_mutation(cfg, +2),
-   lambda cfg: _heads_mutation(cfg, -1),
-   _groups_mutation,
-   _rope_dims_mutation,
-   _router_temp_mutation,
-   _router_topk_mutation,
-   _local_window_mutation,
-   _module_ffn_mutation,
+    lambda cfg: _heads_mutation(cfg, -1),
+    _groups_mutation,
+    _rope_dims_mutation,
+    _stencil_toggle_mutation,
+    _pos_toggle_mutation,
+    _router_temp_mutation,
+    _router_topk_mutation,
+    _local_window_mutation,
+    _add_or_mutate_hierarchy,
+    _add_or_mutate_depth_router,
+    _toggle_kv_policy,
+    _toggle_to_par_mutation,
+    _module_ffn_mutation,
     _pipeline_rewire_mutation,
     _add_cross_skip_mutation,
     _add_memory_stage,
@@ -287,6 +479,49 @@ def generate_mutations(cfg: DSLConfig, *, rng: Optional[random.Random] = None) -
 
     rng.shuffle(variants)
     return variants
+
+
+def _apply_random(
+    mutators: List[MutationFn], seed: DSLConfig, rng: random.Random, k: int
+) -> Optional[DSLConfig]:
+    cfg = seed.model_copy(deep=True)
+    tried = 0
+    for mut in rng.sample(mutators, min(k, len(mutators))):
+        try:
+            out = mut(cfg)
+            if out is not None:
+                cfg = out
+        except DSLValidationError:
+            pass
+        tried += 1
+    return cfg
+
+
+def generate_macro_mutations(
+    cfg: DSLConfig, *, rng: Optional[random.Random] = None, width: int = 3
+) -> List[DSLConfig]:
+    """Produce a few radical variants by composing several mutators."""
+    rng = rng or random.Random()
+    radical_pool = [
+        _stencil_toggle_mutation,
+        _pos_toggle_mutation,
+        _add_or_mutate_hierarchy,
+        _add_or_mutate_depth_router,
+        _toggle_kv_policy,
+        _toggle_to_par_mutation,
+        _swap_to_route_mutation,
+    ]
+    out: List[DSLConfig] = []
+    for _ in range(width):
+        combo_k = rng.choice([2, 3, 4])
+        mutated = _apply_random(radical_pool, cfg, rng, combo_k)
+        try:
+            run_additional_checks(mutated)  # type: ignore[arg-type]
+            out.append(mutated)  # type: ignore[arg-type]
+        except DSLValidationError:
+            continue
+    rng.shuffle(out)
+    return out
 
 
 def pick_random_mutation(cfg: DSLConfig, *, rng: Optional[random.Random] = None) -> DSLConfig:

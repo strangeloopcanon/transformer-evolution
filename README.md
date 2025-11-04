@@ -121,6 +121,18 @@ flowchart TD
 * Improve mixer fidelity further (GPU-friendly Retention/SSM kernels with state reuse).
 * Scale mutation/evolution runs (more generations, larger populations, periodic long budgets) once GPU resources are available.
 
+### Exploration Mode (radical mutations)
+
+The mutation engine now includes broader, DSL-level edits to explore structure, not just hyperparameters:
+
+- Stencil toggles: full/local/sliding/ring with sensible defaults.
+- Positional toggles: RoPE↔ALiBi; RoPE scaling (e.g., YaRN), dims/theta sweeps.
+- Hierarchy: add/perturb multi-level downsampling with optional up-projection.
+- Depth router: inject token-level routing (budget/τ/min_layers) or anneal budgets.
+- KV policy: add/mutate global KV cache window and quantization (nf4/fp8/int8).
+- Mixer topology: switch single↔parallel (Attention + Retention ± SSM, merge Add/WeightedAdd) and single↔route (with router params).
+- Macro-mutations: compose 2–4 of the above in one step; evolution occasionally prefers these for diversity.
+
 ## Overnight Sweep Playbook
 
 - **Seed population**: `configs/free_transformer.yaml`, `configs/free_transformer_alt.yaml`, `examples/nanogpt_tiny.yaml`, plus evolved seeds in `results/evolution/gen_7/variant_7.yaml` and `results/evolution/gen_8/variant_7.yaml`.
