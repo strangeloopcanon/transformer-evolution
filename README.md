@@ -70,6 +70,52 @@ flowchart TD
 - **Normalization upgrades:** RMSNorm throughout and explicit QK-norm in the upper decoder for stability, replacing the baseline’s LayerNorm + raw QK.
 - **RoPE + YaRN scaling:** rotates embeddings with NTK/YaRN scaling to support 8k contexts, whereas the baseline used learned/sinusoidal positional encodings.
 
+## Evolution Creative Sweep (seq_len=192, batch=6, 30 generations)
+
+The creative search (population 16, top-k 5, 3 immigrants) promoted a deeper sliding-window stack and a hybrid attention/retention path as the current front-runners:
+
+| Config | Score | Highlights |
+| --- | --- | --- |
+| `results/evolution_creative/gen_28/variant_7.yaml` | **0.0143** | 18-layer sliding attention trunk with hierarchical downsampling and a token-level depth router |
+| `results/evolution_creative/gen_22/variant_8.yaml` | 0.0152 | Parallel attention/retention mixer with FiLM + LoRA conditioning and NF4 windowed KV caching |
+
+### Architecture sketch (`gen_28/variant_7`)
+
+```mermaid
+flowchart TD
+    INPUT["Token embeddings<br/>RMSNorm + RoPE theta=12000 dims=32"]
+    TRUNK["18-layer trunk<br/>Sliding-window attention<br/>window=256 stride=64<br/>heads=11 groups=8"]
+    FFN["Dense FFN<br/>SwiGLU mult=3.2<br/>RMSNorm"]
+    HIER["Hierarchy scheduler<br/>Level1 every 3 -> downsample x0.5<br/>Level2 every 6 -> downsample x0.25 + up-proj"]
+    ROUTER["Depth router (token)<br/>budget=0.6 tau=0.7<br/>min_layers=3"]
+    OUTPUT["Readout"]
+    INPUT --> TRUNK --> FFN --> HIER --> ROUTER --> OUTPUT
+```
+
+- Downsampling compresses intermediate states aggressively (0.5 then 0.25) and re-expands with `up_proj=true`, letting later layers focus compute on summarised context.
+- Sliding attention keeps receptive fields dense within a 256-token window while striding 64 tokens to balance memory and coverage.
+- The token-level depth router prunes residual layers when per-token confidence is high, holding average depth close to the 0.6 budget.
+
+### Architecture sketch (`gen_22/variant_8`)
+
+```mermaid
+flowchart TD
+    INPUT["Token embeddings<br/>RMSNorm + RoPE theta=25000 dims=32<br/>YaRN scaling factor=1.5"]
+    COND["Conditioning path<br/>Pool-MLP H=16<br/>Freebits kappa=0.5"]
+    OPS["Latent ops<br/>FiLM at pre_mixer<br/>LoRA r=4 on proj_q"]
+    MIX["Parallel mixers per layer<br/>Attention: heads=10 groups=4 window=3456 (ALiBi)<br/>Retention: heads=8 chunk=1024<br/>merge=Add"]
+    KV["KV policy<br/>Window cache=8192<br/>NF4 quantisation"]
+    FFN["Dense FFN<br/>SwiGLU mult=3.04<br/>RMSNorm"]
+    OUTPUT["Readout"]
+    INPUT --> MIX --> FFN --> OUTPUT
+    COND --> OPS --> MIX
+    MIX --> KV
+```
+
+- The conditioner injects global statistics (Pool-MLP) while Freebits regularisation caps information collapse before FiLM/LoRA apply per-layer modulation.
+- Attention and Retention run side-by-side each layer, merging additively to mix long-context memory (retention chunk 1024) with windowed ALiBi attention.
+- Windowed KV caching (8192 tokens, NF4 quant) keeps memory bounded while still supporting 8k token contexts via YaRN-scaled RoPE.
+
 ## Next Steps
 
 * Improve mixer fidelity further (GPU-friendly Retention/SSM kernels with state reuse).
