@@ -25,6 +25,24 @@ def main() -> int:
     parser.add_argument("--pdh-base", type=int, default=60)
     parser.add_argument("--pdh-stages", type=int, default=2)
     parser.add_argument("--immigrants", type=int, default=2)
+    parser.add_argument(
+        "--macro-prob",
+        type=float,
+        default=0.35,
+        help="Probability to use radical macro-mutations when generating children [0-1]",
+    )
+    parser.add_argument(
+        "--crossover-prob",
+        type=float,
+        default=0.35,
+        help="Probability to use parent crossover when generating children [0-1]",
+    )
+    parser.add_argument(
+        "--novelty-extra",
+        type=int,
+        default=2,
+        help="Number of additional novelty-picked parents beyond top-k",
+    )
     args = parser.parse_args()
 
     seeds = []
@@ -55,6 +73,9 @@ def main() -> int:
             max_stages=args.pdh_stages,
         ),
         immigrants=args.immigrants,
+        macro_prob=args.macro_prob,
+        crossover_prob=args.crossover_prob,
+        novelty_extra=args.novelty_extra,
     )
 
     archive = run_evolution(seeds, args.output, evo_cfg=evo_cfg)

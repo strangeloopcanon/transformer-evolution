@@ -38,6 +38,10 @@ class EvolutionConfig:
     )
     pdh: PDHConfig = field(default_factory=lambda: PDHConfig(base_steps=60, max_stages=2))
     immigrants: int = 2
+    # exploration knobs
+    macro_prob: float = 0.35
+    crossover_prob: float = 0.35
+    novelty_extra: int = 2
 
 
 def _prune_none(value):
@@ -134,14 +138,14 @@ def run_evolution(
         for _, cand in novelty_pairs:
             if cand not in parents:
                 parents.append(cand)
-            if len(parents) >= evo_cfg.top_k + 2:
+            if len(parents) >= evo_cfg.top_k + evo_cfg.novelty_extra:
                 break
         next_gen: List[EvolutionCandidate] = []
         next_gen.extend(parents)
 
         # Children from mutations
         while len(next_gen) < max(0, evo_cfg.population_size - evo_cfg.immigrants):
-            if len(parents) >= 2 and rng.random() < 0.35:
+            if len(parents) >= 2 and rng.random() < evo_cfg.crossover_prob:
                 # simple crossover: pick two parents, blend arch fields and borrow modules/pipeline
                 p1, p2 = rng.sample(parents, 2)
                 child = p1.config.model_copy(deep=True)
@@ -174,7 +178,7 @@ def run_evolution(
             else:
                 parent = rng.choice(parents)
                 # Occasionally apply a macro (radical) mutation composed of multiple edits
-                if rng.random() < 0.35:
+                if rng.random() < evo_cfg.macro_prob:
                     variants = generate_macro_mutations(parent.config, rng=rng, width=3)
                 else:
                     variants = generate_mutations(parent.config, rng=rng)
