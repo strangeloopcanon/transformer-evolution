@@ -1,20 +1,10 @@
 from __future__ import annotations
 
-from typing import Dict, Iterable, List
+from typing import Iterable, List
 
 import math
 
 from evoforge.dsl.models import DSLConfig
-
-
-def _safe_get(d: Dict, key: str, default: float = 0.0) -> float:
-    v = d.get(key)
-    if isinstance(v, bool):
-        return 1.0 if v else 0.0
-    try:
-        return float(v)
-    except Exception:
-        return float(default)
 
 
 def embed_architecture(cfg: DSLConfig) -> List[float]:
