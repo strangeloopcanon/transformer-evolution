@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import random
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -11,6 +12,7 @@ from evoforge.dsl.api import load_validate_yaml
 from evoforge.dsl.mutations import generate_mutations
 from evoforge.dsl.models import DSLConfig
 from evoforge.search.runner import run_search
+from evoforge.search.novelty import embed_architecture, novelty_score
 from evoforge.search.asha import ASHAConfig
 from evoforge.search.pdh import PDHConfig
 
@@ -75,10 +77,15 @@ def run_evolution(
 
     archive: List[EvolutionCandidate] = []
 
+    archive_vecs: List[List[float]] = []
     for gen in range(evo_cfg.generations):
         gen_dir = output_dir / f"gen_{gen}"
         gen_dir.mkdir(parents=True, exist_ok=True)
         cfg_files = [cand.path for cand in population]
+        print(
+            f"[evoforge] generation {gen}: evaluating {len(cfg_files)} candidates",
+            flush=True,
+        )
         result = run_search(
             cfg_files,
             asha_config=evo_cfg.asha,
@@ -101,21 +108,75 @@ def run_evolution(
                 "best": state.best,
             }
 
+        # Update archive and novelty info
+        for cand in population:
+            try:
+                archive_vecs.append(embed_architecture(cand.config))
+            except Exception:
+                pass
         archive.extend(population)
         archive.sort(key=lambda c: c.score)
         archive = archive[: evo_cfg.population_size]
 
-        parents = sorted(population, key=lambda c: c.score)[: evo_cfg.top_k]
+        # Parent selection: top by score plus a couple by novelty to keep diversity
+        sorted_by_score = sorted(population, key=lambda c: c.score)
+        parents = sorted_by_score[: evo_cfg.top_k]
+        # compute novelty for the rest
+        novelty_pairs = []
+        for cand in population:
+            try:
+                vec = embed_architecture(cand.config)
+                nov = novelty_score(vec, archive_vecs)
+                novelty_pairs.append((nov, cand))
+            except Exception:
+                pass
+        novelty_pairs.sort(key=lambda t: t[0], reverse=True)
+        for _, cand in novelty_pairs:
+            if cand not in parents:
+                parents.append(cand)
+            if len(parents) >= evo_cfg.top_k + 2:
+                break
         next_gen: List[EvolutionCandidate] = []
         next_gen.extend(parents)
 
         # Children from mutations
         while len(next_gen) < max(0, evo_cfg.population_size - evo_cfg.immigrants):
-            parent = rng.choice(parents)
-            variants = generate_mutations(parent.config, rng=rng)
-            if not variants:
-                break
-            variant_cfg = rng.choice(variants)
+            if len(parents) >= 2 and rng.random() < 0.35:
+                # simple crossover: pick two parents, blend arch fields and borrow modules/pipeline
+                p1, p2 = rng.sample(parents, 2)
+                child = p1.config.model_copy(deep=True)
+                # blend a few scalars
+                try:
+                    child.arch.ffn.mult = round(
+                        (p1.config.arch.ffn.mult + p2.config.arch.ffn.mult) / 2.0, 2
+                    )
+                    # choose mix_unit from either
+                    if rng.random() < 0.5 and p2.config.arch.mix_unit:
+                        child.arch.mix_unit = p2.config.arch.mix_unit.model_copy(deep=True)
+                    # swap rope dims occasionally
+                    if (
+                        child.arch.pos.kind == "rope"
+                        and child.arch.pos.rope
+                        and p2.config.arch.pos.kind == "rope"
+                        and p2.config.arch.pos.rope
+                        and rng.random() < 0.5
+                    ):
+                        child.arch.pos.rope.dims = p2.config.arch.pos.rope.dims
+                    # borrow a module from p2
+                    if p2.config.arch.modules and rng.random() < 0.5:
+                        child.arch.modules = child.arch.modules or {}
+                        for name, mod in p2.config.arch.modules.items():
+                            if rng.random() < 0.5:
+                                child.arch.modules[name] = mod.model_copy(deep=True)
+                except Exception:
+                    pass
+                variant_cfg = child
+            else:
+                parent = rng.choice(parents)
+                variants = generate_mutations(parent.config, rng=rng)
+                if not variants:
+                    break
+                variant_cfg = rng.choice(variants)
             variant_path = gen_dir / f"variant_{len(next_gen)}.yaml"
             _write_config(variant_cfg, variant_path)
             next_gen.append(EvolutionCandidate(path=variant_path, config=variant_cfg))
@@ -132,5 +193,11 @@ def run_evolution(
             next_gen.append(EvolutionCandidate(path=immigrant_path, config=immigrant_cfg))
 
         population = next_gen
+        best_score = archive[0].score if archive else float("inf")
+        score_msg = f"{best_score:.6f}" if math.isfinite(best_score) else "inf"
+        print(
+            f"[evoforge] generation {gen}: completed with best score {score_msg}",
+            flush=True,
+        )
 
     return archive
