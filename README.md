@@ -1,5 +1,7 @@
 # Transformer Evolution Toolkit
 
+![Evolution Lineage (focus)](results/evolution_explore_20251104-111225/lineage_focus.png)
+
 ## Objective
 
 Transformer Evolution lets us describe Transformer-family architectures in a single DSL, mutate them, and evaluate candidates automatically. The current goal is to run evolutionary sweeps (ASHA for breadth, PDH for depth) over that DSL and surface high-quality pipeline designs such as Free Transformer variants.
