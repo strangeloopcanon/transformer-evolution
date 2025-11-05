@@ -84,6 +84,7 @@ def run_evolution(
     lineage_records: List[Dict[str, object]] = []
 
     archive_vecs: List[List[float]] = []
+    scores_map: Dict[str, float] = {}
     for gen in range(evo_cfg.generations):
         gen_dir = output_dir / f"gen_{gen}"
         gen_dir.mkdir(parents=True, exist_ok=True)
@@ -109,6 +110,7 @@ def run_evolution(
                 score = best.get("score", float("inf"))
             cand_results[population[idx].path] = score
             population[idx].score = score
+            scores_map[str(population[idx].path)] = score
             population[idx].metadata = {
                 "history": state.history,
                 "best": state.best,
@@ -233,6 +235,12 @@ def run_evolution(
             )
 
         population = next_gen
+        # backfill scores into lineage records for any known paths in this generation
+        for rec in lineage_records:
+            if "score" not in rec:
+                s = scores_map.get(rec.get("child", ""))
+                if s is not None:
+                    rec["score"] = s
         best_score = archive[0].score if archive else float("inf")
         score_msg = f"{best_score:.6f}" if math.isfinite(best_score) else "inf"
         print(
