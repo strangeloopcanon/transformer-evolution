@@ -79,10 +79,16 @@ def main() -> int:
     ap.add_argument(
         "--attach-genesis", action="store_true", help="Attach external seeds to genesis node"
     )
+    ap.add_argument("--gen-start", type=int, default=None, help="Only include records with gen >= this")
+    ap.add_argument("--gen-end", type=int, default=None, help="Only include records with gen <= this")
     args = ap.parse_args()
 
     data = json.loads(args.lineage.read_text())
     records = data.get("records", [])
+    if args.gen_start is not None:
+        records = [r for r in records if int(r.get("gen", -1)) >= args.gen_start]
+    if args.gen_end is not None:
+        records = [r for r in records if int(r.get("gen", -1)) <= args.gen_end]
     out_dir = args.lineage.parent
 
     print("flowchart", args.direction)
