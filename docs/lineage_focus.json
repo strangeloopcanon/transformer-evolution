@@ -1,0 +1,220 @@
+{
+  "records": [
+    {
+      "gen": 0,
+      "child": "results/evolution_explore_20251104-111225/gen_0/immigrant_1.yaml",
+      "op": "immigrant",
+      "parents": [
+        "results/evolution_creative/gen_29/immigrant_2.yaml",
+        "examples/route.yaml"
+      ]
+    },
+    {
+      "gen": 0,
+      "child": "results/evolution_explore_20251104-111225/gen_0/immigrant_2.yaml",
+      "op": "immigrant",
+      "parents": [
+        "examples/route.yaml",
+        "results/evolution_creative/gen_29/variant_10.yaml"
+      ]
+    },
+    {
+      "gen": 0,
+      "child": "results/evolution_explore_20251104-111225/gen_0/variant_10.yaml",
+      "op": "crossover",
+      "parents": [
+        "examples/retnet.yaml",
+        "examples/route.yaml"
+      ]
+    },
+    {
+      "gen": 0,
+      "child": "results/evolution_explore_20251104-111225/gen_0/variant_12.yaml",
+      "op": "crossover",
+      "parents": [
+        "examples/route.yaml",
+        "configs/transformer_vaswani_big.yaml"
+      ]
+    },
+    {
+      "gen": 1,
+      "child": "results/evolution_explore_20251104-111225/gen_1/immigrant_1.yaml",
+      "op": "immigrant",
+      "parents": [
+        "results/evolution_explore_20251104-111225/gen_0/immigrant_1.yaml",
+        "examples/ring_attention.yaml"
+      ]
+    },
+    {
+      "gen": 5,
+      "child": "results/evolution_explore_20251104-111225/gen_5/immigrant_5.yaml",
+      "op": "immigrant",
+      "parents": [
+        "examples/route.yaml",
+        "results/evolution_explore_20251104-111225/gen_0/variant_10.yaml"
+      ]
+    },
+    {
+      "gen": 6,
+      "child": "results/evolution_explore_20251104-111225/gen_6/variant_12.yaml",
+      "op": "crossover",
+      "parents": [
+        "results/evolution_explore_20251104-111225/gen_0/immigrant_2.yaml",
+        "examples/route.yaml"
+      ]
+    },
+    {
+      "gen": 8,
+      "child": "results/evolution_explore_20251104-111225/gen_8/immigrant_4.yaml",
+      "op": "immigrant",
+      "parents": [
+        "results/evolution_explore_20251104-111225/gen_1/immigrant_1.yaml",
+        "results/evolution_explore_20251104-111225/gen_0/immigrant_1.yaml"
+      ]
+    },
+    {
+      "gen": 8,
+      "child": "results/evolution_explore_20251104-111225/gen_8/variant_11.yaml",
+      "op": "crossover",
+      "parents": [
+        "results/evolution_explore_20251104-111225/gen_6/variant_12.yaml",
+        "results/evolution_explore_20251104-111225/gen_0/immigrant_2.yaml"
+      ]
+    },
+    {
+      "gen": 9,
+      "child": "results/evolution_explore_20251104-111225/gen_9/variant_13.yaml",
+      "op": "crossover",
+      "parents": [
+        "results/evolution_explore_20251104-111225/gen_8/immigrant_4.yaml",
+        "results/evolution_explore_20251104-111225/gen_1/immigrant_1.yaml"
+      ]
+    },
+    {
+      "gen": 10,
+      "child": "results/evolution_explore_20251104-111225/gen_10/variant_12.yaml",
+      "op": "crossover",
+      "parents": [
+        "results/evolution_explore_20251104-111225/gen_8/immigrant_4.yaml",
+        "results/evolution_explore_20251104-111225/gen_9/variant_13.yaml"
+      ]
+    },
+    {
+      "gen": 10,
+      "child": "results/evolution_explore_20251104-111225/gen_10/variant_13.yaml",
+      "op": "crossover",
+      "parents": [
+        "results/evolution_explore_20251104-111225/gen_8/immigrant_4.yaml",
+        "results/evolution_explore_20251104-111225/gen_1/immigrant_1.yaml"
+      ]
+    },
+    {
+      "gen": 11,
+      "child": "results/evolution_explore_20251104-111225/gen_11/variant_10.yaml",
+      "op": "crossover",
+      "parents": [
+        "results/evolution_explore_20251104-111225/gen_6/variant_12.yaml",
+        "results/evolution_explore_20251104-111225/gen_8/variant_11.yaml"
+      ]
+    },
+    {
+      "gen": 11,
+      "child": "results/evolution_explore_20251104-111225/gen_11/variant_11.yaml",
+      "op": "crossover",
+      "parents": [
+        "results/evolution_explore_20251104-111225/gen_10/variant_13.yaml",
+        "results/evolution_explore_20251104-111225/gen_10/variant_12.yaml"
+      ]
+    },
+    {
+      "gen": 12,
+      "child": "results/evolution_explore_20251104-111225/gen_12/variant_10.yaml",
+      "op": "crossover",
+      "parents": [
+        "results/evolution_explore_20251104-111225/gen_9/variant_13.yaml",
+        "results/evolution_explore_20251104-111225/gen_8/immigrant_4.yaml"
+      ]
+    },
+    {
+      "gen": 14,
+      "child": "results/evolution_explore_20251104-111225/gen_14/variant_12.yaml",
+      "op": "crossover",
+      "parents": [
+        "results/evolution_explore_20251104-111225/gen_12/variant_10.yaml",
+        "results/evolution_explore_20251104-111225/gen_9/variant_13.yaml"
+      ]
+    },
+    {
+      "gen": 15,
+      "child": "results/evolution_explore_20251104-111225/gen_15/variant_11.yaml",
+      "op": "crossover",
+      "parents": [
+        "results/evolution_explore_20251104-111225/gen_14/variant_12.yaml",
+        "results/evolution_explore_20251104-111225/gen_11/variant_11.yaml"
+      ]
+    },
+    {
+      "gen": 17,
+      "child": "results/evolution_explore_20251104-111225/gen_17/variant_11.yaml",
+      "op": "crossover",
+      "parents": [
+        "results/evolution_explore_20251104-111225/gen_11/variant_10.yaml",
+        "results/evolution_explore_20251104-111225/gen_15/variant_11.yaml"
+      ]
+    },
+    {
+      "gen": 18,
+      "child": "results/evolution_explore_20251104-111225/gen_18/immigrant_3.yaml",
+      "op": "immigrant",
+      "parents": [
+        "examples/route.yaml",
+        "results/evolution_explore_20251104-111225/gen_5/immigrant_5.yaml"
+      ]
+    },
+    {
+      "gen": 31,
+      "child": "results/evolution_explore_20251104-111225/gen_31/immigrant_4.yaml",
+      "op": "immigrant",
+      "parents": [
+        "results/evolution_explore_20251104-111225/gen_18/immigrant_3.yaml",
+        "examples/route.yaml"
+      ]
+    },
+    {
+      "gen": 37,
+      "child": "results/evolution_explore_20251104-111225/gen_37/variant_12.yaml",
+      "op": "crossover",
+      "parents": [
+        "results/evolution_explore_20251104-111225/gen_11/variant_10.yaml",
+        "results/evolution_explore_20251104-111225/gen_17/variant_11.yaml"
+      ]
+    },
+    {
+      "gen": 39,
+      "child": "results/evolution_explore_20251104-111225/gen_39/variant_10.yaml",
+      "op": "crossover",
+      "parents": [
+        "results/evolution_explore_20251104-111225/gen_37/variant_12.yaml",
+        "results/evolution_explore_20251104-111225/gen_11/variant_10.yaml"
+      ]
+    },
+    {
+      "gen": 39,
+      "child": "results/evolution_explore_20251104-111225/gen_39/variant_11.yaml",
+      "op": "crossover",
+      "parents": [
+        "results/evolution_explore_20251104-111225/gen_18/immigrant_3.yaml",
+        "results/evolution_explore_20251104-111225/gen_31/immigrant_4.yaml"
+      ]
+    },
+    {
+      "gen": 39,
+      "child": "results/evolution_explore_20251104-111225/gen_39/variant_12.yaml",
+      "op": "crossover",
+      "parents": [
+        "results/evolution_explore_20251104-111225/gen_37/variant_12.yaml",
+        "results/evolution_explore_20251104-111225/gen_0/variant_12.yaml"
+      ]
+    }
+  ]
+}

@@ -1,6 +1,12 @@
 # Transformer Evolution Toolkit
 
-![Evolution Lineage (focus)](results/evolution_explore_20251104-111225/lineage_focus.png)
+![Evolution Lineage (focus)](docs/lineage_focus.png)
+
+## Internal Evolution Maps
+
+- Architectural “subway map”: `docs/transformer_subway.png` — shows how the key architectural ideas (norm, position, mixer, KV, structure, conditioning) feed into our current winners.
+- Full lineage (compact): `results/evolution_explore_20251104-111225/lineage_focus.png`.
+
 
 ## Objective
 
