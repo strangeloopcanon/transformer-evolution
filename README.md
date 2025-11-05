@@ -2,10 +2,26 @@
 
 ![Evolution Lineage (focus)](docs/lineage_focus.png)
 
+## Architectural Subway (what changed)
+
+![Architectural Subway](docs/transformer_subway.png)
+
+This map shows how core ideas in our search compose into winners:
+
+- Norm/FFN: RMSNorm + SwiGLU replace LayerNorm + ReLU/GeLU.
+- Position: RoPE (sometimes with YaRN scaling) or ALiBi where local bias helps.
+- Mixer: Full → Local → Sliding attention; hybrid lines (Retention/SSM) appear in runner‑ups.
+- KV: Windowed caches and quantization bound memory for long contexts.
+- Depth & structure: hierarchy + token‑level depth routing; parallel mixers in runner‑ups.
+- Conditioning: FiLM + LoRA + Freebits appear in the modulated path.
+
 ## Internal Evolution Maps
 
-- Architectural “subway map”: `docs/transformer_subway.png` — shows how the key architectural ideas (norm, position, mixer, KV, structure, conditioning) feed into our current winners.
-- Full lineage (compact): `results/evolution_explore_20251104-111225/lineage_focus.png`.
+- Full lineage (compact): `docs/lineage_focus.png` (JSON: `docs/lineage_focus.json`).
+
+## Results Index
+
+Single source of truth for runs: `results/index.json` (name, generations, lineage artifacts, top candidates, log, size).
 
 
 ## Objective
