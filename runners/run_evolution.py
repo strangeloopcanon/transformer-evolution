@@ -79,9 +79,18 @@ def main() -> int:
     )
 
     archive = run_evolution(seeds, args.output, evo_cfg=evo_cfg)
-    print(f"Evolution completed. Top candidates:")
-    for cand in archive[:5]:
-        print(f"  {cand.path}: score={cand.score}")
+    print("Evolution completed. Top candidates:")
+    seen = set()
+    printed = 0
+    for cand in archive:
+        p = str(cand.path)
+        if p in seen:
+            continue
+        print(f"  {p}: score={cand.score}")
+        seen.add(p)
+        printed += 1
+        if printed >= 5:
+            break
     return 0
 
 

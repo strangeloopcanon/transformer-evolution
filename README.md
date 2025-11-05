@@ -133,6 +133,15 @@ The mutation engine now includes broader, DSL-level edits to explore structure, 
 - Mixer topology: switch single↔parallel (Attention + Retention ± SSM, merge Add/WeightedAdd) and single↔route (with router params).
 - Macro-mutations: compose 2–4 of the above in one step; evolution occasionally prefers these for diversity.
 
+### Lineage Visualization
+
+Each run now emits a lineage file for visualization: `<output>/lineage.json`.
+
+- Convert to Mermaid flowchart:
+  - `python scripts/lineage_to_mermaid.py <output>/lineage.json > <output>/lineage.mmd`
+  - Paste `lineage.mmd` into a Mermaid viewer, or embed in docs.
+- Edges are annotated with the operation kind: `mutation`, `macro`, `crossover`, or `immigrant`.
+
 ## Overnight Sweep Playbook
 
 - **Seed population**: `configs/free_transformer.yaml`, `configs/free_transformer_alt.yaml`, `examples/nanogpt_tiny.yaml`, plus evolved seeds in `results/evolution/gen_7/variant_7.yaml` and `results/evolution/gen_8/variant_7.yaml`.
