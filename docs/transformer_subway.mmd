@@ -1,0 +1,60 @@
+flowchart LR
+  %% Tracks per innovation axis
+  subgraph norm[Norm]
+    LN[LayerNorm 2017] --> RN[RMSNorm 2019]
+  end
+
+  subgraph pos[Position]
+    Sin[Sinusoidal 2017] --> RoPE[RoPE 2021]
+    RoPE --> ALiBi[ALiBi 2021]
+    RoPE --> YaRN[RoPE + YaRN scaling 2023]
+  end
+
+  subgraph ffn[FFN]
+    ReLU[ReLU 2017] --> GeLU[GeLU 2018] --> SwiGLU[SwiGLU 2020]
+  end
+
+  subgraph mix[Mixer]
+    Full[Full MHA] --> Local[Local window] --> Sliding[Sliding window]
+    Sliding --> Retn[Retention]
+    Retn --> SSM[SSM]
+    SSM --> Hybrid[Hybrid Attn+SSM]
+  end
+
+  subgraph kv[KV]
+    FullKV[Full KV cache] --> WinKV[Windowed cache] --> QKV[Quantized KV NF4/FP8]
+  end
+
+  subgraph ds[Depth & Structure]
+    Single[Single path] --> Par[Parallel mixers]
+    Single --> Route[Token router]
+    Hier[Hierarchy]
+  end
+
+  subgraph cond[Conditioning]
+    FiLM[FiLM] --> LoRA[LoRA]
+    Freebits[Freebits]
+  end
+
+  %% Our discovered candidates
+  W1[[Winner: gen_28/variant_7]]
+  W2[[Runner‑up: gen_22/variant_8]]
+
+  %% Adoption edges to winners
+  RN --> W1
+  RoPE --> W1
+  Sliding --> W1
+  Hier --> W1
+  Route --> W1
+  SwiGLU --> W1
+
+  RN --> W2
+  YaRN --> W2
+  ALiBi --> W2
+  Par --> W2
+  Retn --> W2
+  WinKV --> W2
+  QKV --> W2
+  FiLM --> W2
+  LoRA --> W2
+  Freebits --> W2
