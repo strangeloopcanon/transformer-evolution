@@ -80,6 +80,8 @@ def run_evolution(
         population.append(EvolutionCandidate(path=path, config=cfg))
 
     archive: List[EvolutionCandidate] = []
+    # lineage tracking for visualization
+    lineage_records: List[Dict[str, object]] = []
 
     archive_vecs: List[List[float]] = []
     for gen in range(evo_cfg.generations):
@@ -175,19 +177,41 @@ def run_evolution(
                 except Exception:
                     pass
                 variant_cfg = child
+                op_kind = "crossover"
             else:
                 parent = rng.choice(parents)
                 # Occasionally apply a macro (radical) mutation composed of multiple edits
-                if rng.random() < evo_cfg.macro_prob:
+                used_macro = rng.random() < evo_cfg.macro_prob
+                if used_macro:
                     variants = generate_macro_mutations(parent.config, rng=rng, width=3)
                 else:
                     variants = generate_mutations(parent.config, rng=rng)
                 if not variants:
                     break
                 variant_cfg = rng.choice(variants)
+                op_kind = "macro" if used_macro else "mutation"
             variant_path = gen_dir / f"variant_{len(next_gen)}.yaml"
             _write_config(variant_cfg, variant_path)
             next_gen.append(EvolutionCandidate(path=variant_path, config=variant_cfg))
+            # lineage entry
+            if op_kind == "crossover":
+                lineage_records.append(
+                    {
+                        "gen": gen,
+                        "child": str(variant_path),
+                        "op": op_kind,
+                        "parents": [str(p1.path), str(p2.path)],
+                    }
+                )
+            else:
+                lineage_records.append(
+                    {
+                        "gen": gen,
+                        "child": str(variant_path),
+                        "op": op_kind,
+                        "parents": [str(parent.path)],
+                    }
+                )
 
         # Random immigrants from original seeds to maintain diversity
         for i in range(evo_cfg.immigrants):
@@ -199,6 +223,14 @@ def run_evolution(
             immigrant_path = gen_dir / f"immigrant_{i}.yaml"
             _write_config(immigrant_cfg, immigrant_path)
             next_gen.append(EvolutionCandidate(path=immigrant_path, config=immigrant_cfg))
+            lineage_records.append(
+                {
+                    "gen": gen,
+                    "child": str(immigrant_path),
+                    "op": "immigrant",
+                    "parents": [str(base)],
+                }
+            )
 
         population = next_gen
         best_score = archive[0].score if archive else float("inf")
@@ -207,5 +239,24 @@ def run_evolution(
             f"[evoforge] generation {gen}: completed with best score {score_msg}",
             flush=True,
         )
+
+    # Write lineage file for visualization
+    try:
+        import json
+
+        lineage_path = output_dir / "lineage.json"
+        with lineage_path.open("w") as fh:
+            json.dump(
+                {
+                    "macro_prob": evo_cfg.macro_prob,
+                    "crossover_prob": evo_cfg.crossover_prob,
+                    "novelty_extra": evo_cfg.novelty_extra,
+                    "records": lineage_records,
+                },
+                fh,
+                indent=2,
+            )
+    except Exception:
+        pass
 
     return archive
