@@ -108,40 +108,9 @@ The "subway map" illustrates how core ideas compose into winning candidates over
 -   **Depth & structure:** hierarchy + token‑level depth routing; parallel mixers in runner‑ups.
 -   **Conditioning:** FiLM + LoRA + Freebits appear in the modulated path.
 
-<details>
-<summary><b>Click to see latest results and architecture sketches</b></summary>
+### Current Standouts
 
-### Latest Results (CPU, seq_len=192, batch=6)
-
-| Config | Loss@120 steps | QPC (Δloss/FLOPs) | Tokens/sec |
-| --- | --- | --- | --- |
-| `results/evolution_overnight/gen_8/variant_9.yaml` | **1.14e-2** | 5.44e-13 | 2.05k |
-| `results/evolution/gen_7/variant_7.yaml` | 8.27e-5 | 5.30e-13 | 2.10k |
-| `results/evolution/gen_2/variant_4.yaml` | 1.70e-4 | 5.52e-13 | 2.17k |
-| `configs/free_transformer_alt.yaml` | 2.30e-3 | 5.35e-13 | 2.05k |
-
-The overnight sweep promoted `gen_8/variant_9` as the current frontier: a Free Transformer skeleton with 9-way grouped query attention, tighter RoPE, and a routed lower decoder rebalanced across attention/retention/SSM experts.
-
-### Architecture sketch (`gen_8/variant_9`)
-
-```mermaid
-flowchart TD
-    E["Embeddings + RoPE (dims=32 core / 128 module)"]
-    ENC["Encoder (non-causal attention, 4 layers, GQA)"]
-    LAT["Latent sampler (FiLM + LoRA r=4, H=16)"]
-    DECLOW["Decoder lower:\nrouter top-k=2\nlocal attention (window 1024)\nretention chunk 1024\nSSM d_state=32"]
-    DECUP["Decoder upper (attention with RMS QK-norm)"]
-    OUT["Readout"]
-    E --> ENC
-    ENC --> LAT
-    ENC --> DECLOW
-    LAT --> DECLOW
-    DECLOW --> DECUP
-    LAT --> DECUP
-    DECUP --> OUT
-```
-
-</details>
+- See the latest top candidates in `docs/results_index.json` (snapshot) or `results/index.json` (live). The `top_candidates` list under each run contains the best paths, with scores logged at the end of each run.
 
 ---
 
