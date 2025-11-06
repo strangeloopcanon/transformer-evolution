@@ -15,13 +15,46 @@ This map shows how core ideas in our search compose into winners:
 - Depth & structure: hierarchy + token‑level depth routing; parallel mixers in runner‑ups.
 - Conditioning: FiLM + LoRA + Freebits appear in the modulated path.
 
+## At a Glance
+
+- One DSL to define Transformer-family architectures (typed, validated).
+- Search drivers: ASHA (breadth) + PDH (depth) + novelty-aware parents + crossover + radical macro‑mutations.
+- Outputs: YAML snapshots per candidate, lineage JSON + Mermaid, and a single run index.
+
+## Quickstart
+
+Evolve with exploration turned up (safe defaults). Seeds come from `configs/` + `examples/`.
+
+```bash
+PYTHONPATH=src python runners/run_evolution.py \
+  configs examples \
+  --output results/evolution_explore_quick \
+  --generations 10 --population 12 --top-k 4 --immigrants 4 \
+  --device mps --seq-len 192 --batch-size 6 \
+  --asha-min 40 --asha-max 160 --asha-reduction 2 \
+  --pdh-base 120 --pdh-stages 3 \
+  --macro-prob 0.5 --crossover-prob 0.35 --novelty-extra 3
+```
+
+Then refresh lineage + index:
+
+```bash
+make lineage
+make index
+```
+
+## Run Recipes
+
+- Explore hard (wild structure changes): set `--macro-prob 0.6`, `--immigrants 5–8`.
+- Exploit (refine winners): lower `--macro-prob` (≈0.15), higher `--top-k`, longer `--pdh-base`.
+- Seed from a prior generation: pass the `gen_<n>/` folder or specific winner YAMLs alongside `configs examples`.
 ## Internal Evolution Maps
 
 - Full lineage (compact): `docs/lineage_focus.png` (JSON: `docs/lineage_focus.json`).
 
 ## Results Index
 
-Single source of truth for runs: `results/index.json` (name, generations, lineage artifacts, top candidates, log, size).
+Single source of truth for runs: `results/index.json` (name, generations, lineage artifacts, top candidates, log, size). Snapshot: `docs/results_index.json`.
 
 ## Maintenance
 
