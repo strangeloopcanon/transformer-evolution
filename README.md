@@ -130,18 +130,18 @@ A simplified block‑level sketch of the current top candidate (see the path und
 
 ```mermaid
 flowchart TD
-  IN[Input Tokens] --> EMB[Embedding + RoPE (dims=64, YaRN)]
-  subgraph LAYER[Per-layer mixers]
+  IN["Input Tokens"] --> EMB["Embedding + RoPE (dims=64, YaRN)"]
+  subgraph LAYER ["Per-layer mixers"]
     direction LR
-    ATT[Attention<br/>(ALiBi, local window=3456; heads=10; groups=10)]
-    RET[Retention<br/>(chunk=1024, parallel)]
-    ATT --> MERGE[merge Add]
+    ATT["Attention (ALiBi, local window=3456; heads=10; groups=10)"]
+    RET["Retention (chunk=1024, parallel)"]
+    ATT --> MERGE["merge Add"]
     RET --> MERGE
   end
-  COND[Conditioning: FiLM pre_mixer; LoRA r=4; Freebits kappa=0.5] --> LAYER
-  EMB --> LAYER --> KV[KV: window=8192; NF4]
-  KV --> FFN[FFN: SwiGLU mult=3.33 + RMSNorm]
-  FFN --> OUT[Readout]
+  COND["Conditioning: FiLM pre_mixer; LoRA r=4; Freebits kappa=0.5"] --> LAYER
+  EMB --> LAYER --> KV["KV: window=8192; NF4"]
+  KV --> FFN["FFN: SwiGLU mult=3.33 + RMSNorm"]
+  FFN --> OUT["Readout"]
 ```
 
 - Parallel Attention+Retention per layer balances local inductive bias (ALiBi + long window) with long‑range memory (retention chunk≈1024).
