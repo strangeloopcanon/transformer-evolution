@@ -129,6 +129,31 @@ The "subway map" illustrates how core ideas composed into winning candidates ove
 A simplified block‑level sketch of the current top candidate (see the path under `top_candidates` in [docs/results_index.json](docs/results_index.json)):
 
 ```mermaid
+flowchart TD
+  IN[Input Tokens] --> EMB[Embedding + RoPE (dims≈64, YaRN)]
+  subgraph LAYER[Per‑layer mixers]
+    direction LR
+    ATT[Attention\n(ALiBi, local window≈3456\nheads≈10, groups≈10)]
+    RET[Retention\n(chunk≈1024, parallel)]
+    ATT --> MERGE((merge Add))
+    RET --> MERGE
+  end
+  COND[Conditioning\nFiLM @ pre_mixer; LoRA r=4\nFreebits κ≈0.5] --> LAYER
+  EMB --> LAYER --> KV[KV policy\nwindow≈8192; NF4]
+  KV --> FFN[FFN (SwiGLU mult≈3.33) + RMSNorm]
+  FFN --> OUT[Readout]
+```
+
+- Parallel Attention+Retention per layer balances local inductive bias (ALiBi + long window) with long‑range memory (retention chunk≈1024).
+- FiLM + low‑rank Q modulation (LoRA r=4) provide light‑weight conditioning; Freebits regularization prevents collapse.
+- Windowed + quantized KV (NF4) bounds memory while maintaining 8k contexts.
+- RMSNorm + SwiGLU and small‑dim RoPE with scaling are consistent across winners.
+
+### Legacy diagram (previous candidate)
+
+A simplified block‑level sketch of the current top candidate (see the path under `top_candidates` in [docs/results_index.json](docs/results_index.json)):
+
+```mermaid
 flowchart LR
   IN[Input Tokens] --> EMB[Embedding + RoPE]
   EMB --> TRUNK["Sliding‑window Attention Trunk\n(Deep stack, RMSNorm + SwiGLU)\nwindow≈256 stride≈64; grouped heads"]
