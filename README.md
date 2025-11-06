@@ -16,7 +16,7 @@ This project lets you explore the architectural search space through evolutionar
   - Deep sliding‑window trunk + hierarchical downsampling + token‑level depth routing (efficient compute; dynamic depth when tokens are “easy”).
   - Parallel Attention+Retention per layer with ALiBi/YaRN where helpful, plus windowed NF4 KV cache and FiLM/LoRA conditioning (good long‑context behavior under bounded memory).
 - Common upgrades across winners: RMSNorm + SwiGLU, RoPE (often small dims≈32 with scaling), grouped/efficient attention, local/sliding windows, KV windowing + quantization.
-- Reproducibility: every run writes a lineage (JSON + Mermaid). docs/lineage_focus.png shows the compact final branches; docs/transformer_subway.png explains how ideas compose.
+- Reproducibility: every run writes a lineage (JSON + Mermaid). See the compact final branches in [docs/lineage_focus.png](docs/lineage_focus.png) (data: [docs/lineage_focus.json](docs/lineage_focus.json)) and the idea map in [docs/transformer_subway.png](docs/transformer_subway.png). A snapshot of recent runs lives at [docs/results_index.json](docs/results_index.json).
 
 ## Key Features
 
@@ -124,49 +124,23 @@ The "subway map" illustrates how core ideas composed into winning candidates ove
 
 - See the latest top candidates in `docs/results_index.json` (snapshot) or `results/index.json` (live). The `top_candidates` list under each run contains the best paths, with scores logged at the end of each run.
 
-### Example Architecture
+### Evolved Architecture (current winner)
 
-As a reference, here is a diagram of the example config `examples/nanogpt_tiny.yaml`:
+A simplified block‑level sketch of the current top candidate (see the path under `top_candidates` in [docs/results_index.json](docs/results_index.json)):
 
 ```mermaid
-graph TD
-    subgraph NanoGPT Tiny Architecture
-        direction TB
-        Input[Input Tokens] --> Embedding[Token & Positional Embedding];
-        Embedding --> Block1[Transformer Block 1];
-        Block1 --> Block2[Transformer Block 2];
-        Block2 --> Block3[Transformer Block 3];
-        Block3 --> Block4[Transformer Block 4];
-        Block4 --> Output[Output Logits];
-    end
-
-    subgraph "Transformer Block (x4)"
-        direction TB
-        subgraph "Attention"
-            direction LR
-            Rope[RoPE] --> QKV[Q, K, V Projections];
-            QKV --> MHA[Multi-Head Attention];
-        end
-        subgraph "Feed-Forward Network"
-            direction LR
-            Dense1[Dense Layer] --> GELU[GELU Activation];
-            GELU --> Dense2[Dense Layer];
-        end
-        InputLayer[Input] --> RMSNorm1[RMSNorm];
-        RMSNorm1 --> Attention;
-        Attention --> Add1[Add];
-        InputLayer --> Add1;
-        Add1 --> RMSNorm2[RMSNorm];
-        RMSNorm2 --> Feed-Forward_Network[Feed-Forward Network];
-        Feed-Forward_Network --> Add2[Add];
-        Add1 --> Add2;
-        Add2 --> OutputLayer[Output];
-    end
+flowchart LR
+  IN[Input Tokens] --> EMB[Embedding + RoPE]
+  EMB --> TRUNK["Sliding‑window Attention Trunk\n(Deep stack, RMSNorm + SwiGLU)\nwindow≈256 stride≈64; grouped heads"]
+  TRUNK --> HIER["Hierarchy Scheduler\n(every≈3 → ×0.5, every≈6 → ×0.25, up‑proj)"]
+  HIER --> DEPTH["Token‑level Depth Router\n(budget≈0.6, τ≈0.7; dynamic skip)"]
+  DEPTH --> OUT[Readout]
 ```
 
 ---
 
-## Development & Maintenance
+<details>
+<summary><b>Development & Maintenance</b></summary>
 
 ### Visualize Lineage
 
@@ -201,6 +175,4 @@ python scripts/prune_results.py results/<run_dir>
 python scripts/prune_results.py results/<run_dir> --apply
 ```
 
-## License
-
-[Add your license here]
+</details>
