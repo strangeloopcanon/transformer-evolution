@@ -112,6 +112,46 @@ The "subway map" illustrates how core ideas compose into winning candidates over
 
 - See the latest top candidates in `docs/results_index.json` (snapshot) or `results/index.json` (live). The `top_candidates` list under each run contains the best paths, with scores logged at the end of each run.
 
+### Winning Architecture
+
+Here is a diagram of the winning architecture, `nanogpt_tiny.yaml`:
+
+```mermaid
+graph TD
+    subgraph NanoGPT Tiny Architecture
+        direction TB
+        Input[Input Tokens] --> Embedding[Token & Positional Embedding];
+        Embedding --> Block1[Transformer Block 1];
+        Block1 --> Block2[Transformer Block 2];
+        Block2 --> Block3[Transformer Block 3];
+        Block3 --> Block4[Transformer Block 4];
+        Block4 --> Output[Output Logits];
+    end
+
+    subgraph "Transformer Block (x4)"
+        direction TB
+        subgraph "Attention"
+            direction LR
+            Rope[RoPE] --> QKV[Q, K, V Projections];
+            QKV --> MHA[Multi-Head Attention];
+        end
+        subgraph "Feed-Forward Network"
+            direction LR
+            Dense1[Dense Layer] --> GELU[GELU Activation];
+            GELU --> Dense2[Dense Layer];
+        end
+        InputLayer[Input] --> RMSNorm1[RMSNorm];
+        RMSNorm1 --> Attention;
+        Attention --> Add1[Add];
+        InputLayer --> Add1;
+        Add1 --> RMSNorm2[RMSNorm];
+        RMSNorm2 --> Feed-Forward_Network[Feed-Forward Network];
+        Feed-Forward_Network --> Add2[Add];
+        Add1 --> Add2;
+        Add2 --> OutputLayer[Output];
+    end
+```
+
 ---
 
 ## Development & Maintenance
