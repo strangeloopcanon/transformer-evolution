@@ -23,4 +23,3 @@ class Node:
 
 
 Graph = List[Node]
-

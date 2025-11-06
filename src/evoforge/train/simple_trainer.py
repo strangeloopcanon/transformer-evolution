@@ -43,7 +43,9 @@ def _estimate_flops(cfg: DSLConfig, tokens: int) -> float:
     mix_unit = arch.mix_unit
     ffn_mult = arch.ffn.mult
     layers = arch.n_layers
-    heads = (mix_unit.mixer.heads if mix_unit.mixer else d_model // 64) if mix_unit else d_model // 64
+    heads = (
+        (mix_unit.mixer.heads if mix_unit.mixer else d_model // 64) if mix_unit else d_model // 64
+    )
 
     attn_flops = 4 * d_model * d_model + 2 * (heads or 1) * (d_model // (heads or 1)) * tokens
     ffn_flops = 2 * d_model * int(ffn_mult * d_model)
@@ -78,7 +80,9 @@ def _enforce_flop_budget(cfg: DSLConfig, step_flops: float) -> None:
 
 
 @torch.no_grad()
-def _compute_calibration_metrics(model: torch.nn.Module, x: torch.Tensor, y: torch.Tensor) -> Dict[str, float]:
+def _compute_calibration_metrics(
+    model: torch.nn.Module, x: torch.Tensor, y: torch.Tensor
+) -> Dict[str, float]:
     logits = model(x)
     probs = torch.softmax(logits.float(), dim=-1)
     confidences, preds = probs.max(dim=-1)
@@ -134,7 +138,9 @@ def run_micro_train(
         dtype = torch.float16 if dev.type == "cuda" else torch.float32
         model = model.to(device=dev, dtype=dtype)
 
-        optim = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=cfg.train.wd or 0.0)
+        optim = torch.optim.AdamW(
+            model.parameters(), lr=learning_rate, weight_decay=cfg.train.wd or 0.0
+        )
 
         loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, drop_last=True)
         data_iter = itertools.cycle(loader)

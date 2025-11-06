@@ -34,7 +34,9 @@ def main() -> int:
     if not cfg_paths:
         raise SystemExit("No configs provided")
 
-    asha_cfg = ASHAConfig(min_steps=args.min_steps, max_steps=args.max_steps, reduction_factor=args.reduction)
+    asha_cfg = ASHAConfig(
+        min_steps=args.min_steps, max_steps=args.max_steps, reduction_factor=args.reduction
+    )
     pdh_cfg = PDHConfig(base_steps=args.base_steps, max_stages=args.max_stages)
     result = run_search(
         cfg_paths,

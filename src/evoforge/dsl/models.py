@@ -211,7 +211,9 @@ class PipelineStage(BaseModel):
     module: Optional[str] = None
     kind: Optional[Literal["module", "latent_sampler", "readout", "embedding", "custom"]] = None
     repeat: Optional[int] = Field(default=None, ge=1)
-    mode: Optional[Literal["all", "train", "prefill", "decode", "train_prefill", "inference"]] = None
+    mode: Optional[Literal["all", "train", "prefill", "decode", "train_prefill", "inference"]] = (
+        None
+    )
     inputs: Optional[List[str]] = None
     kv_from: Optional[List[str]] = None
     mem_from: Optional[List[str]] = None

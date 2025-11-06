@@ -48,4 +48,3 @@ def load_default_text() -> str:
 def create_tiny_dataset(seq_len: int) -> TinyCharDataset:
     text = load_default_text()
     return TinyCharDataset(text, seq_len)
-

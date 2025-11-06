@@ -21,12 +21,7 @@ def _validate_schema(cfg_dict: dict) -> None:
     validator = Draft202012Validator(DSL_JSON_SCHEMA)
     errors = sorted(validator.iter_errors(cfg_dict), key=lambda e: e.path)
     if errors:
-        msg = "\n".join(
-            [
-                f"{list(e.path)}: {e.message}" if e.path else e.message
-                for e in errors
-            ]
-        )
+        msg = "\n".join([f"{list(e.path)}: {e.message}" if e.path else e.message for e in errors])
         raise DSLValidationError(msg)
 
 

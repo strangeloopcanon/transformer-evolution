@@ -48,7 +48,9 @@ def _compute_qpc(result: TrainResult) -> float:
     return (result.loss_history[0] - result.loss_history[-1]) / result.total_flops
 
 
-def _run_candidate(candidate: Candidate, steps: int, *, device: Optional[str], seq_len: int, batch_size: int) -> TrainResult:
+def _run_candidate(
+    candidate: Candidate, steps: int, *, device: Optional[str], seq_len: int, batch_size: int
+) -> TrainResult:
     return run_micro_train(
         candidate.cfg_path,
         steps=steps,

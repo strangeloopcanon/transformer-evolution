@@ -94,7 +94,9 @@ def _build_attn_mask(
 
         def allow(condition: torch.Tensor) -> None:
             nonlocal mask
-            allowed = torch.where(condition, torch.zeros_like(mask), torch.full_like(mask, float("-inf")))
+            allowed = torch.where(
+                condition, torch.zeros_like(mask), torch.full_like(mask, float("-inf"))
+            )
             mask = torch.maximum(mask, allowed)
 
         if kind in {"local", "sliding", "dilated", "hybrid"}:
@@ -116,7 +118,11 @@ def _build_attn_mask(
             next_block = (block_ids + 1) % blocks
             source = block_ids.unsqueeze(0)
             target = block_ids.unsqueeze(1)
-            condition = (source == target) | (source == prev_block.unsqueeze(1)) | (source == next_block.unsqueeze(1))
+            condition = (
+                (source == target)
+                | (source == prev_block.unsqueeze(1))
+                | (source == next_block.unsqueeze(1))
+            )
             allow(condition)
         elif kind == "cross":
             # Allow all connections (mask already handles causality)
@@ -190,7 +196,9 @@ class ConvMixerModule(nn.Module):
 
 
 class StateSpaceMixerModule(nn.Module):
-    def __init__(self, dim: int, d_state: Optional[int] = None, expand: Optional[float] = None) -> None:
+    def __init__(
+        self, dim: int, d_state: Optional[int] = None, expand: Optional[float] = None
+    ) -> None:
         super().__init__()
         base_state = d_state or max(4, dim // 4)
         expand = expand or 1.0
@@ -322,7 +330,7 @@ class RouterMixerModule(nn.Module):
         if self._usage_count == 0:
             return None
         usage = (self._usage_sum / float(self._usage_count)).detach().cpu().tolist()
-        entropy = (self._entropy_sum.item() / float(self._usage_count))
+        entropy = self._entropy_sum.item() / float(self._usage_count)
         return {"usage": usage, "entropy": entropy, "collapsed": self._collapsed}
 
 
@@ -469,7 +477,9 @@ class PipelineModel(nn.Module):
         super().__init__()
         arch = cfg.arch
         if not arch.modules or not arch.pipeline:
-            raise DSLValidationError("Pipeline configuration requires modules and pipeline definitions")
+            raise DSLValidationError(
+                "Pipeline configuration requires modules and pipeline definitions"
+            )
         self.max_seq_len = cfg.train.ctx_len
         self.vocab_size = vocab_size
         self.dim = arch.d_model
@@ -494,17 +504,19 @@ class PipelineModel(nn.Module):
             if module_kind is None:
                 module_kind = "module"
             if module_kind == "embedding":
-                dim = (module_spec.d_model if module_spec and module_spec.d_model else arch.d_model)
+                dim = module_spec.d_model if module_spec and module_spec.d_model else arch.d_model
                 runner = EmbeddingStage(stage.name, vocab_size, dim, cfg.train.ctx_len)
             elif module_kind == "latent_sampler":
-                dim = (module_spec.d_model if module_spec and module_spec.d_model else arch.d_model)
+                dim = module_spec.d_model if module_spec and module_spec.d_model else arch.d_model
                 runner = LatentSamplerStage(stage.name, dim)
             elif module_kind == "readout":
-                dim = (module_spec.d_model if module_spec and module_spec.d_model else arch.d_model)
+                dim = module_spec.d_model if module_spec and module_spec.d_model else arch.d_model
                 runner = ReadoutStage(stage.name, dim, vocab_size)
             else:
                 if module_spec is None:
-                    raise DSLValidationError(f"Pipeline stage '{stage.name}' missing module reference")
+                    raise DSLValidationError(
+                        f"Pipeline stage '{stage.name}' missing module reference"
+                    )
                 runner = TransformerStage(stage.name, module_spec, cfg, cfg.train.ctx_len)
             self.stage_map[stage.name] = runner
 

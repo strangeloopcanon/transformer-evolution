@@ -60,9 +60,7 @@ def _validate_attention_rules(arch: Arch) -> None:
 def _validate_recurrent_rules(arch: Arch) -> None:
     for mixer in _iter_mixers(arch.mix_unit):
         if mixer.mode == "recurrent" and mixer.kind not in {"Retention", "SSM"}:
-            raise DSLValidationError(
-                "Only Retention or SSM mixers may set mode='recurrent'"
-            )
+            raise DSLValidationError("Only Retention or SSM mixers may set mode='recurrent'")
 
 
 def _validate_cond_rules(cond: Optional[Cond]) -> None:
@@ -152,7 +150,12 @@ def _validate_modules(modules: Optional[Dict[str, ModuleSpec]]) -> None:
         if not isinstance(module, ModuleSpec):
             continue
         if module.kind == "transformer":
-            if module.mix_unit is None or module.ffn is None or module.norm is None or module.pos is None:
+            if (
+                module.mix_unit is None
+                or module.ffn is None
+                or module.norm is None
+                or module.pos is None
+            ):
                 raise DSLValidationError(f"Transformer module '{name}' missing core fields")
 
 
