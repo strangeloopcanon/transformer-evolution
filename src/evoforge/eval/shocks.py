@@ -6,10 +6,13 @@ import torch
 
 
 @torch.no_grad()
-def error_recovery_probe(model: torch.nn.Module, x: torch.Tensor, y: torch.Tensor, corrupt: int = 2) -> Dict[str, float]:
+def error_recovery_probe(
+    model: torch.nn.Module, x: torch.Tensor, y: torch.Tensor, corrupt: int = 2
+) -> Dict[str, float]:
     # Compute loss on clean vs corrupted last tokens
     device = next(model.parameters()).device
     vocab = model.linear.out_features if hasattr(model, "linear") else None
+
     def ce(a, b):
         return torch.nn.functional.cross_entropy(a.view(-1, a.size(-1)).float(), b.view(-1))
 
@@ -42,7 +45,9 @@ def niah_probe(model: torch.nn.Module, seq_len: int = 256, batch: int = 4) -> Di
 
 
 @torch.no_grad()
-def spec_decode_probe(model: torch.nn.Module, x: torch.Tensor, allowed: str = "0123456789 ") -> Dict[str, float]:
+def spec_decode_probe(
+    model: torch.nn.Module, x: torch.Tensor, allowed: str = "0123456789 "
+) -> Dict[str, float]:
     # Constrained decoding: probability mass assigned to allowed set on last step
     device = next(model.parameters()).device
     logits = model(x.to(device))
@@ -51,4 +56,3 @@ def spec_decode_probe(model: torch.nn.Module, x: torch.Tensor, allowed: str = "0
     allowed_idx = torch.arange(0, probs.size(-1), device=device)
     mass = probs[..., allowed_idx].sum().item()
     return {"spec_mass": float(mass)}
-

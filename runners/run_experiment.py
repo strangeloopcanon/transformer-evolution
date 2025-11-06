@@ -32,7 +32,9 @@ def main() -> int:
     parser.add_argument("--asha-reduction", type=int, default=3)
     parser.add_argument("--pdh-base", type=int, default=20)
     parser.add_argument("--pdh-stages", type=int, default=3)
-    parser.add_argument("--deep-steps", type=int, default=0, help="If >0 run deep evaluations with this step budget")
+    parser.add_argument(
+        "--deep-steps", type=int, default=0, help="If >0 run deep evaluations with this step budget"
+    )
     parser.add_argument("--deep-seq-len", type=int, default=256)
     parser.add_argument("--deep-batch-size", type=int, default=6)
     parser.add_argument("--deep-top-k", type=int, default=1)
@@ -49,10 +51,14 @@ def main() -> int:
     if not cfg_paths:
         raise SystemExit("No valid configs provided")
 
-    asha_cfg = ASHAConfig(min_steps=args.asha_min, max_steps=args.asha_max, reduction_factor=args.asha_reduction)
+    asha_cfg = ASHAConfig(
+        min_steps=args.asha_min, max_steps=args.asha_max, reduction_factor=args.asha_reduction
+    )
     pdh_cfg = PDHConfig(base_steps=args.pdh_base, max_stages=args.pdh_stages)
 
-    print(f"[run] ASHA(min={args.asha_min}, max={args.asha_max}, r={args.asha_reduction}); PDH(base={args.pdh_base}, stages={args.pdh_stages})")
+    print(
+        f"[run] ASHA(min={args.asha_min}, max={args.asha_max}, r={args.asha_reduction}); PDH(base={args.pdh_base}, stages={args.pdh_stages})"
+    )
     search_result = run_search(
         cfg_paths,
         asha_config=asha_cfg,
@@ -81,9 +87,13 @@ def main() -> int:
             "stages": state.history,
             "best_score": best.get("score"),
             "best_steps": best.get("steps"),
-            "qpc": compute_qpc(result.loss_history if result else [], result.total_flops if result else 0.0)
-            if result
-            else None,
+            "qpc": (
+                compute_qpc(
+                    result.loss_history if result else [], result.total_flops if result else 0.0
+                )
+                if result
+                else None
+            ),
             "tokens_per_sec": result.tokens_per_sec if result else None,
             "total_tokens": result.total_tokens if result else None,
             "total_flops": result.total_flops if result else None,
@@ -96,7 +106,9 @@ def main() -> int:
     if args.deep_steps > 0:
         ranked = sorted(
             enumerate(summary["candidates"]),
-            key=lambda item: item[1]["best_score"] if item[1]["best_score"] is not None else float("inf"),
+            key=lambda item: (
+                item[1]["best_score"] if item[1]["best_score"] is not None else float("inf")
+            ),
         )
         for rank_idx, (cand_idx, cand_entry) in enumerate(ranked[: max(1, args.deep_top_k)]):
             cfg_path = cfg_paths[cand_idx]
@@ -111,6 +123,7 @@ def main() -> int:
             # light shock probes
             try:
                 import torch
+
                 # fabricate a small batch from deep seq length for probes
                 x = torch.randint(0, 256, (2, min(args.deep_seq_len, 128)))
                 shocks = {}
