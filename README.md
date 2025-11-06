@@ -130,17 +130,17 @@ A simplified block‑level sketch of the current top candidate (see the path und
 
 ```mermaid
 flowchart TD
-  IN[Input Tokens] --> EMB[Embedding + RoPE (dims≈64, YaRN)]
-  subgraph LAYER[Per‑layer mixers]
+  IN[Input Tokens] --> EMB[Embedding + RoPE (dims=64, YaRN)]
+  subgraph LAYER[Per-layer mixers]
     direction LR
-    ATT[Attention\n(ALiBi, local window≈3456\nheads≈10, groups≈10)]
-    RET[Retention\n(chunk≈1024, parallel)]
-    ATT --> MERGE((merge Add))
+    ATT[Attention<br/>(ALiBi, local window=3456; heads=10; groups=10)]
+    RET[Retention<br/>(chunk=1024, parallel)]
+    ATT --> MERGE[merge Add]
     RET --> MERGE
   end
-  COND[Conditioning\nFiLM @ pre_mixer; LoRA r=4\nFreebits κ≈0.5] --> LAYER
-  EMB --> LAYER --> KV[KV policy\nwindow≈8192; NF4]
-  KV --> FFN[FFN (SwiGLU mult≈3.33) + RMSNorm]
+  COND[Conditioning: FiLM pre_mixer; LoRA r=4; Freebits kappa=0.5] --> LAYER
+  EMB --> LAYER --> KV[KV: window=8192; NF4]
+  KV --> FFN[FFN: SwiGLU mult=3.33 + RMSNorm]
   FFN --> OUT[Readout]
 ```
 
@@ -149,18 +149,7 @@ flowchart TD
 - Windowed + quantized KV (NF4) bounds memory while maintaining 8k contexts.
 - RMSNorm + SwiGLU and small‑dim RoPE with scaling are consistent across winners.
 
-### Legacy diagram (previous candidate)
-
-A simplified block‑level sketch of the current top candidate (see the path under `top_candidates` in [docs/results_index.json](docs/results_index.json)):
-
-```mermaid
-flowchart LR
-  IN[Input Tokens] --> EMB[Embedding + RoPE]
-  EMB --> TRUNK["Sliding‑window Attention Trunk\n(Deep stack, RMSNorm + SwiGLU)\nwindow≈256 stride≈64; grouped heads"]
-  TRUNK --> HIER["Hierarchy Scheduler\n(every≈3 → ×0.5, every≈6 → ×0.25, up‑proj)"]
-  HIER --> DEPTH["Token‑level Depth Router\n(budget≈0.6, τ≈0.7; dynamic skip)"]
-  DEPTH --> OUT[Readout]
-```
+<!-- legacy diagram removed for clarity -->
 
 ---
 
