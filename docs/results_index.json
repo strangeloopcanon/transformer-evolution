@@ -1,20 +1,65 @@
 {
   "runs": [
     {
-      "name": "evolution_explore_quick",
-      "path": "results/evolution_explore_quick",
-      "generations": 1,
+      "name": "evolution_creative",
+      "path": "results/evolution_creative",
+      "generations": 30,
       "lineage": {
-        "lineage.json": true,
+        "lineage.json": false,
         "lineage_reconstructed.json": false,
         "lineage_focus.json": false,
         "lineage_focus.png": false
       },
+      "top_candidates": [],
+      "log": null,
+      "size_mb": 0.23
+    },
+    {
+      "name": "evolution_explore_20251104-111225",
+      "path": "results/evolution_explore_20251104-111225",
+      "generations": 40,
+      "lineage": {
+        "lineage.json": false,
+        "lineage_reconstructed.json": true,
+        "lineage_focus.json": true,
+        "lineage_focus.png": true
+      },
       "top_candidates": [
-        "results/evolution_explore_quick/gen_0/winner.yaml"
+        "results/evolution_explore_20251104-111225/gen_23/variant_13.yaml",
+        "results/evolution_explore_20251104-111225/gen_21/variant_11.yaml",
+        "results/evolution_explore_20251104-111225/gen_20/variant_10.yaml",
+        "results/evolution_creative/gen_29/variant_10.yaml"
       ],
-      "log": "results/logs/evolution_explore_quick.log",
-      "size_mb": 0.0
+      "log": "results/logs/evolution_explore_20251104-111225.log",
+      "size_mb": 1.25
+    },
+    {
+      "name": "evolution_explore_full_20251105-103900",
+      "path": "results/evolution_explore_full_20251105-103900",
+      "generations": 36,
+      "lineage": {
+        "lineage.json": false,
+        "lineage_reconstructed.json": false,
+        "lineage_focus.json": false,
+        "lineage_focus.png": false
+      },
+      "top_candidates": [],
+      "log": "results/logs/evolution_explore_full_20251105-103900.log",
+      "size_mb": 0.31
+    },
+    {
+      "name": "evolution_overnight",
+      "path": "results/evolution_overnight",
+      "generations": 10,
+      "lineage": {
+        "lineage.json": false,
+        "lineage_reconstructed.json": false,
+        "lineage_focus.json": false,
+        "lineage_focus.png": false
+      },
+      "top_candidates": [],
+      "log": null,
+      "size_mb": 0.22
     }
   ]
 }
