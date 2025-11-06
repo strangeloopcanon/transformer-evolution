@@ -1,0 +1,20 @@
+{
+  "runs": [
+    {
+      "name": "evolution_explore_quick",
+      "path": "results/evolution_explore_quick",
+      "generations": 1,
+      "lineage": {
+        "lineage.json": true,
+        "lineage_reconstructed.json": false,
+        "lineage_focus.json": false,
+        "lineage_focus.png": false
+      },
+      "top_candidates": [
+        "results/evolution_explore_quick/gen_0/winner.yaml"
+      ],
+      "log": "results/logs/evolution_explore_quick.log",
+      "size_mb": 0.0
+    }
+  ]
+}
