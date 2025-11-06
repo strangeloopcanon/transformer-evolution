@@ -1,15 +1,17 @@
 # Transformer Evolution
 
+Question: can we "evolve" transformers to find a better architecture?
+
 A toolkit for defining, evolving, and evaluating Transformer-family architectures using a flexible Domain-Specific Language (DSL).
 
 This project lets you explore the architectural search space through evolutionary algorithms, surfacing high‑quality designs by mutating, crossing over, and evaluating candidates automatically.
 
 ![Lineage Focus](docs/lineage_focus.png)
 
-## TL;DR — What we tried and what we found
+## What we tried and what we found
 
-- Goal: push beyond hyper‑parameters and explore macro‑architecture using a typed DSL. Make search compute‑aware, and keep a full, visual lineage of how each model “evolved”.
-- Method: ASHA (breadth) + PDH (depth) with novelty‑aware parents, optional crossover, and radical macro‑mutations (stencil/position/hierarchy/depth‑router/KV policy/mixer topology/conditioning).
+- Goal: push beyond hyper‑parameters and explore macro‑architecture. Make search compute‑aware.
+- Method: Built a fully typed DSL to represent all manner of transformers (and related) architectures. Then used ASHA (breadth) + PDH (depth) with novelty‑aware parents, optional crossover, and radical macro‑mutations (stencil/position/hierarchy/depth‑router/KV policy/mixer topology/conditioning).
 - Findings: the search consistently favored two strong families:
   - Deep sliding‑window trunk + hierarchical downsampling + token‑level depth routing (efficient compute; dynamic depth when tokens are “easy”).
   - Parallel Attention+Retention per layer with ALiBi/YaRN where helpful, plus windowed NF4 KV cache and FiLM/LoRA conditioning (good long‑context behavior under bounded memory).
@@ -107,7 +109,7 @@ This project tracks the lineage of architectural changes and their impact on per
 
 ### Architectural Subway Map
 
-The "subway map" illustrates how core ideas compose into winning candidates over generations.
+The "subway map" illustrates how core ideas composed into winning candidates over generations.
 
 ![Architectural Subway](docs/transformer_subway.png)
 
