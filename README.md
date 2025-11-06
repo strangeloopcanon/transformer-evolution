@@ -1,29 +1,48 @@
-# Transformer Evolution Toolkit
+# Transformer Evolution
 
-![Evolution Lineage (focus)](docs/lineage_focus.png)
+A toolkit for defining, evolving, and evaluating Transformer-family architectures using a flexible Domain-Specific Language (DSL).
 
-## Architectural Subway (what changed)
+This project lets you explore the architectural search space through evolutionary algorithms, surfacing high-quality designs by mutating, crossing over, and evaluating candidates automatically.
 
-![Architectural Subway](docs/transformer_subway.png)
+![Lineage Focus](docs/lineage_focus.png)
 
-This map shows how core ideas in our search compose into winners:
+## Key Features
 
-- Norm/FFN: RMSNorm + SwiGLU replace LayerNorm + ReLU/GeLU.
-- Position: RoPE (sometimes with YaRN scaling) or ALiBi where local bias helps.
-- Mixer: Full → Local → Sliding attention; hybrid lines (Retention/SSM) appear in runner‑ups.
-- KV: Windowed caches and quantization bound memory for long contexts.
-- Depth & structure: hierarchy + token‑level depth routing; parallel mixers in runner‑ups.
-- Conditioning: FiLM + LoRA + Freebits appear in the modulated path.
+- **Flexible DSL:** Define a wide range of Transformer-family architectures in a single, typed, and validated DSL.
+- **Powerful Search Drivers:** Utilizes a combination of ASHA (for breadth), PDH (for depth), and novelty-aware evolutionary algorithms.
+- **Advanced Mutations:** Supports both simple hyperparameter tuning and radical, macro-level architectural changes.
+- **Rich Outputs:** Generates YAML snapshots, performance metrics, and lineage visualizations for each run.
+- **Reproducible Results:** Track every candidate and its ancestry, ensuring full transparency and reproducibility.
 
-## At a Glance
+---
 
-- One DSL to define Transformer-family architectures (typed, validated).
-- Search drivers: ASHA (breadth) + PDH (depth) + novelty-aware parents + crossover + radical macro‑mutations.
-- Outputs: YAML snapshots per candidate, lineage JSON + Mermaid, and a single run index.
+## Getting Started
 
-## Quickstart
+### 1. Prerequisites
 
-Evolve with exploration turned up (safe defaults). Seeds come from `configs/` + `examples/`.
+- Python 3.10+
+
+### 2. Installation
+
+Create a virtual environment and install the required dependencies.
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt -r requirements-dev.txt
+```
+
+### 3. Run a Quick Test
+
+Verify your setup by running the smoke tests.
+
+```bash
+make test
+```
+
+### 4. Run a Sample Evolution
+
+Start a small-scale evolutionary search. This command seeds the initial population from the example configurations and runs for a few generations.
 
 ```bash
 PYTHONPATH=src python runners/run_evolution.py \
@@ -31,70 +50,68 @@ PYTHONPATH=src python runners/run_evolution.py \
   --output results/evolution_explore_quick \
   --generations 10 --population 12 --top-k 4 --immigrants 4 \
   --device mps --seq-len 192 --batch-size 6 \
-  --asha-min 40 --asha-max 160 --asha-reduction 2 \
-  --pdh-base 120 --pdh-stages 3 \
-  --macro-prob 0.5 --crossover-prob 0.35 --novelty-extra 3
+  --asha-min 40 --asha-max 160 --asha-reduction 2
 ```
 
-Then refresh lineage + index:
+---
 
-```bash
-make lineage
-make index
-```
+## Usage
 
-## Run Recipes
+### Running Experiments
 
-- Explore hard (wild structure changes): set `--macro-prob 0.6`, `--immigrants 5–8`.
-- Exploit (refine winners): lower `--macro-prob` (≈0.15), higher `--top-k`, longer `--pdh-base`.
-- Seed from a prior generation: pass the `gen_<n>/` folder or specific winner YAMLs alongside `configs examples`.
-## Internal Evolution Maps
+- **Evolutionary Search:** The primary method for discovering new architectures.
+  ```bash
+  PYTHONPATH=src python runners/run_evolution.py <seed_dirs...> [options]
+  ```
+- **Full Sweep (ASHA → PDH):** Evaluate a fixed set of configurations.
+  ```bash
+  PYTHONPATH=src python runners/run_experiment.py <config_files...> [options]
+  ```
+- **Validate a Config:** Check a single architecture file for correctness.
+  ```bash
+  PYTHONPATH=src python runners/validate.py --cfg examples/plain.yaml
+  ```
+- **Micro-Train a Config:** Train a tiny model for a few steps.
+  ```bash
+  PYTHONPATH=src python runners/train_tiny.py --cfg examples/nanogpt_tiny.yaml --steps 20
+  ```
 
-- Full lineage (compact): `docs/lineage_focus.png` (JSON: `docs/lineage_focus.json`).
+### Run Recipes
 
-## Results Index
+- **Explore (Wild Structure Changes):** Use a high probability of macro-mutations and more immigrants to diversify the population.
+  ```bash
+  --macro-prob 0.6 --immigrants 5
+  ```
+- **Exploit (Refine Winners):** Lower the mutation probability and focus on the top-performing candidates.
+  ```bash
+  --macro-prob 0.15 --top-k 8
+  ```
+  
+Tip: `make help` lists useful maintenance commands (lineage/index).
 
-Single source of truth for runs: `results/index.json` (name, generations, lineage artifacts, top candidates, log, size). Snapshot: `docs/results_index.json`.
+---
 
-## Maintenance
+## Project Insights & Results
 
-- Refresh lineage focus (from latest run or a chosen run):
-  - `make lineage` or `make lineage RUN=results/<run_dir> K=3`
-  - Updates `docs/lineage_focus.png` and `docs/lineage_focus.json`.
-- Rebuild run inventory (and snapshot to docs):
-  - `make index` → writes `results/index.json` and `docs/results_index.json`.
-- Optional: prune non-essential YAMLs in a run (moves to `_archive/`, no deletion):
-  - Dry-run: `python scripts/prune_results.py results/<run_dir>`
-  - Apply:   `python scripts/prune_results.py results/<run_dir> --apply`
+This project tracks the lineage of architectural changes and their impact on performance.
 
+### Architectural Subway Map
 
-## Objective
+The "subway map" illustrates how core ideas compose into winning candidates over generations.
 
-Transformer Evolution lets us describe Transformer-family architectures in a single DSL, mutate them, and evaluate candidates automatically. The current goal is to run evolutionary sweeps (ASHA for breadth, PDH for depth) over that DSL and surface high-quality pipeline designs such as Free Transformer variants.
+![Architectural Subway](docs/transformer_subway.png)
 
-## Setup
+-   **Norm/FFN:** RMSNorm + SwiGLU replace LayerNorm + ReLU/GeLU.
+-   **Position:** RoPE (sometimes with YaRN scaling) or ALiBi where local bias helps.
+-   **Mixer:** Full → Local → Sliding attention; hybrid lines (Retention/SSM) appear in runner‑ups.
+-   **KV:** Windowed caches and quantization bound memory for long contexts.
+-   **Depth & structure:** hierarchy + token‑level depth routing; parallel mixers in runner‑ups.
+-   **Conditioning:** FiLM + LoRA + Freebits appear in the modulated path.
 
-1. Create a virtual env and install requirements:
-   ```bash
-   python3 -m venv .venv
-   . .venv/bin/activate
-   pip install -r requirements.txt -r requirements-dev.txt
-   ```
-2. Run the smoke tests:
-   ```bash
-   make test
-   ```
+<details>
+<summary><b>Click to see latest results and architecture sketches</b></summary>
 
-## Key Commands
-
-* Validate a config: `PYTHONPATH=src .venv/bin/python runners/validate.py --cfg examples/free_transformer_pipeline.yaml`
-* Micro-train a config: `PYTHONPATH=src .venv/bin/python runners/train_tiny.py --cfg examples/nanogpt_tiny.yaml --steps 20`
-* Full ASHA → PDH sweep: `PYTHONPATH=src .venv/bin/python runners/run_experiment.py <cfgs…> [options]`
-* Mutation-based evolution: `PYTHONPATH=src .venv/bin/python runners/run_evolution.py configs examples --generations 4 --population 8 --top-k 4`
-
-Results (metrics, tokens, FLOPs) are written to `results/search_report.json`, and mutated DSL snapshots live under `results/evolution/gen_*/variant_*.yaml`.
-
-## Latest Results (CPU, seq_len=192, batch=6)
+### Latest Results (CPU, seq_len=192, batch=6)
 
 | Config | Loss@120 steps | QPC (Δloss/FLOPs) | Tokens/sec |
 | --- | --- | --- | --- |
@@ -103,7 +120,7 @@ Results (metrics, tokens, FLOPs) are written to `results/search_report.json`, an
 | `results/evolution/gen_2/variant_4.yaml` | 1.70e-4 | 5.52e-13 | 2.17k |
 | `configs/free_transformer_alt.yaml` | 2.30e-3 | 5.35e-13 | 2.05k |
 
-The overnight sweep (10 generations, population 10 on MPS with CPU fallback) promoted `gen_8/variant_9` as the current frontier: still a Free Transformer skeleton, but with 9-way grouped query attention at the trunk, tighter RoPE (dims=32) in the shared positional core, and the routed lower decoder rebalanced across attention/retention/SSM experts. PDH deep-evaluation at 400 steps (`seq_len=256`, batch 6) finished with loss `1.17e-2`, ECE `3.2e-3`, and 0.998 accuracy on the calibration slice.
+The overnight sweep promoted `gen_8/variant_9` as the current frontier: a Free Transformer skeleton with 9-way grouped query attention, tighter RoPE, and a routed lower decoder rebalanced across attention/retention/SSM experts.
 
 ### Architecture sketch (`gen_8/variant_9`)
 
@@ -124,96 +141,45 @@ flowchart TD
     DECUP --> OUT
 ```
 
-* Trunk attention runs with grouped queries (`heads=9`, `groups=9`) and tightened shared RoPE dims (32 core) while module-specific RoPE stays at 128.
-* Lower decoder keeps a windowed KV cache (`window=8192`, `nf4` quantisation).
-* Router balances attention, retention, and SSM experts with temperature 0.7.
-* Upper decoder relies on standard causal attention with RMS QK-norm.
+</details>
 
-### Variant_9 vs. "Attention Is All You Need"
+---
 
-- **Latent sampler:** adds a FiLM + LoRA latent path (H=16) that modulates every decoder block; the Vaswani baseline has no learned latent conditioning.
-- **Grouped-query attention + local windows:** uses per-head KV (groups=heads) and windowed attention in the lower decoder to cut KV memory; the baseline keeps full MHA everywhere.
-- **Mixture-of-architectures:** decoder_lower routes across Attention/Retention/SSM experts with top-k gating, extending contextual memory; baseline decoder is attention-only.
-- **Structured KV policy:** windowed + NF4-quantised cache vs. baseline’s full-precision KV store.
-- **Normalization upgrades:** RMSNorm throughout and explicit QK-norm in the upper decoder for stability, replacing the baseline’s LayerNorm + raw QK.
-- **RoPE + YaRN scaling:** rotates embeddings with NTK/YaRN scaling to support 8k contexts, whereas the baseline used learned/sinusoidal positional encodings.
+## Development & Maintenance
 
-## Evolution Creative Sweep (seq_len=192, batch=6, 30 generations)
+### Visualize Lineage
 
-The creative search (population 16, top-k 5, 3 immigrants) promoted a deeper sliding-window stack and a hybrid attention/retention path as the current front-runners:
+Each run produces a `lineage.json`. You can visualize the full evolutionary history using `make`. This updates `docs/lineage_focus.png`.
+Note: Mermaid rendering via `mmdc` is optional; Node ≥20 is recommended.
 
-| Config | Score | Highlights |
-| --- | --- | --- |
-| `results/evolution_creative/gen_28/variant_7.yaml` | **0.0143** | 18-layer sliding attention trunk with hierarchical downsampling and a token-level depth router |
-| `results/evolution_creative/gen_22/variant_8.yaml` | 0.0152 | Parallel attention/retention mixer with FiLM + LoRA conditioning and NF4 windowed KV caching |
+```bash
+# Generate from the latest run
+make lineage
 
-### Architecture sketch (`gen_28/variant_7`)
-
-```mermaid
-flowchart TD
-    INPUT["Token embeddings<br/>RMSNorm + RoPE theta=12000 dims=32"]
-    TRUNK["18-layer trunk<br/>Sliding-window attention<br/>window=256 stride=64<br/>heads=11 groups=8"]
-    FFN["Dense FFN<br/>SwiGLU mult=3.2<br/>RMSNorm"]
-    HIER["Hierarchy scheduler<br/>Level1 every 3 -> downsample x0.5<br/>Level2 every 6 -> downsample x0.25 + up-proj"]
-    ROUTER["Depth router (token)<br/>budget=0.6 tau=0.7<br/>min_layers=3"]
-    OUTPUT["Readout"]
-    INPUT --> TRUNK --> FFN --> HIER --> ROUTER --> OUTPUT
+# Or specify a run directory
+make lineage RUN=results/<run_dir> K=3
 ```
 
-- Downsampling compresses intermediate states aggressively (0.5 then 0.25) and re-expands with `up_proj=true`, letting later layers focus compute on summarised context.
-- Sliding attention keeps receptive fields dense within a 256-token window while striding 64 tokens to balance memory and coverage.
-- The token-level depth router prunes residual layers when per-token confidence is high, holding average depth close to the 0.6 budget.
+### Index Results
 
-### Architecture sketch (`gen_22/variant_8`)
+The `make index` command inventories all runs and creates a summary at `results/index.json` (and a snapshot at `docs/results_index.json`).
 
-```mermaid
-flowchart TD
-    INPUT["Token embeddings<br/>RMSNorm + RoPE theta=25000 dims=32<br/>YaRN scaling factor=1.5"]
-    COND["Conditioning path<br/>Pool-MLP H=16<br/>Freebits kappa=0.5"]
-    OPS["Latent ops<br/>FiLM at pre_mixer<br/>LoRA r=4 on proj_q"]
-    MIX["Parallel mixers per layer<br/>Attention: heads=10 groups=4 window=3456 (ALiBi)<br/>Retention: heads=8 chunk=1024<br/>merge=Add"]
-    KV["KV policy<br/>Window cache=8192<br/>NF4 quantisation"]
-    FFN["Dense FFN<br/>SwiGLU mult=3.04<br/>RMSNorm"]
-    OUTPUT["Readout"]
-    INPUT --> MIX --> FFN --> OUTPUT
-    COND --> OPS --> MIX
-    MIX --> KV
+```bash
+make index
 ```
 
-- The conditioner injects global statistics (Pool-MLP) while Freebits regularisation caps information collapse before FiLM/LoRA apply per-layer modulation.
-- Attention and Retention run side-by-side each layer, merging additively to mix long-context memory (retention chunk 1024) with windowed ALiBi attention.
-- Windowed KV caching (8192 tokens, NF4 quant) keeps memory bounded while still supporting 8k token contexts via YaRN-scaled RoPE.
+### Prune Results
 
-## Next Steps
+Archive non-essential YAML files from a run to save space. This is a safe, non-destructive operation.
 
-* Improve mixer fidelity further (GPU-friendly Retention/SSM kernels with state reuse).
-* Scale mutation/evolution runs (more generations, larger populations, periodic long budgets) once GPU resources are available.
+```bash
+# Dry-run to see what would be archived
+python scripts/prune_results.py results/<run_dir>
 
-### Exploration Mode (radical mutations)
+# Apply the pruning
+python scripts/prune_results.py results/<run_dir> --apply
+```
 
-The mutation engine now includes broader, DSL-level edits to explore structure, not just hyperparameters:
+## License
 
-- Stencil toggles: full/local/sliding/ring with sensible defaults.
-- Positional toggles: RoPE↔ALiBi; RoPE scaling (e.g., YaRN), dims/theta sweeps.
-- Hierarchy: add/perturb multi-level downsampling with optional up-projection.
-- Depth router: inject token-level routing (budget/τ/min_layers) or anneal budgets.
-- KV policy: add/mutate global KV cache window and quantization (nf4/fp8/int8).
-- Mixer topology: switch single↔parallel (Attention + Retention ± SSM, merge Add/WeightedAdd) and single↔route (with router params).
-- Macro-mutations: compose 2–4 of the above in one step; evolution occasionally prefers these for diversity.
-
-### Lineage Visualization
-
-Each run now emits a lineage file for visualization: `<output>/lineage.json`.
-
-- Convert to Mermaid flowchart:
-  - `python scripts/lineage_to_mermaid.py <output>/lineage.json > <output>/lineage.mmd`
-  - Paste `lineage.mmd` into a Mermaid viewer, or embed in docs.
-- Edges are annotated with the operation kind: `mutation`, `macro`, `crossover`, or `immigrant`.
-
-## Overnight Sweep Playbook
-
-- **Seed population**: `configs/free_transformer.yaml`, `configs/free_transformer_alt.yaml`, `examples/nanogpt_tiny.yaml`, plus evolved seeds in `results/evolution/gen_7/variant_7.yaml` and `results/evolution/gen_8/variant_7.yaml`.
-- **Stage B micro-distill**: start runs with `--seq-len 192 --batch-size 6`; this keeps budgets within the current CPU envelope.
-- **Deep promotions**: run `runners/run_experiment.py … --deep-steps 400 --deep-seq-len 256 --deep-batch-size 6 --deep-top-k 2` to re-evaluate the current Pareto front every few generations without touching earlier ASHA/PDH checkpoints.
-- **Variant_7 note**: promising steerability/coherence at fixed FLOPs, but latent usefulness and router stability remain open engineering risks—monitor FiLM/LoRA activations and gating entropy during long runs.
-- **MPS safety**: `run_micro_train` now retries on CPU if MPS throws (see `allow_fallback=True`), so overnight sweeps can run on GPU without babysitting. Logged history flags any invalid configs that ASHA pruned.
+[Add your license here]
