@@ -2,9 +2,19 @@
 
 A toolkit for defining, evolving, and evaluating Transformer-family architectures using a flexible Domain-Specific Language (DSL).
 
-This project lets you explore the architectural search space through evolutionary algorithms, surfacing high-quality designs by mutating, crossing over, and evaluating candidates automatically.
+This project lets you explore the architectural search space through evolutionary algorithms, surfacing high‑quality designs by mutating, crossing over, and evaluating candidates automatically.
 
 ![Lineage Focus](docs/lineage_focus.png)
+
+## TL;DR — What we tried and what we found
+
+- Goal: push beyond hyper‑parameters and explore macro‑architecture using a typed DSL. Make search compute‑aware, and keep a full, visual lineage of how each model “evolved”.
+- Method: ASHA (breadth) + PDH (depth) with novelty‑aware parents, optional crossover, and radical macro‑mutations (stencil/position/hierarchy/depth‑router/KV policy/mixer topology/conditioning).
+- Findings: the search consistently favored two strong families:
+  - Deep sliding‑window trunk + hierarchical downsampling + token‑level depth routing (efficient compute; dynamic depth when tokens are “easy”).
+  - Parallel Attention+Retention per layer with ALiBi/YaRN where helpful, plus windowed NF4 KV cache and FiLM/LoRA conditioning (good long‑context behavior under bounded memory).
+- Common upgrades across winners: RMSNorm + SwiGLU, RoPE (often small dims≈32 with scaling), grouped/efficient attention, local/sliding windows, KV windowing + quantization.
+- Reproducibility: every run writes a lineage (JSON + Mermaid). docs/lineage_focus.png shows the compact final branches; docs/transformer_subway.png explains how ideas compose.
 
 ## Key Features
 
