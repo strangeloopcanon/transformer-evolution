@@ -3,7 +3,7 @@ VENV=.venv
 PIP=$(VENV)/bin/pip
 PYBIN=$(VENV)/bin/python
 
-.PHONY: setup check test deps-audit all index lineage
+.PHONY: setup check test deps-audit all index lineage help
 
 setup:
 	@test -d $(VENV) || $(PY) -m venv $(VENV)
@@ -49,7 +49,23 @@ lineage:
 		mkdir -p docs; \
 		[ -f $$RUN/lineage_focus.png ] && cp -f $$RUN/lineage_focus.png docs/lineage_focus.png || true; \
 		cp -f $$RUN/lineage_focus.json docs/lineage_focus.json || true; \
-		echo "Refreshed docs/lineage_focus.png from $$RUN"; \
+			echo "Refreshed docs/lineage_focus.png from $$RUN"; \
 	else \
 		echo "No lineage_reconstructed.json found in $$RUN"; \
 	fi
+
+# Show available targets and usage
+help:
+	@echo "Targets:" && \
+	echo "  setup     - create venv and install deps" && \
+	echo "  check     - format check, lint, types, quick security" && \
+	echo "  test      - run tests with coverage" && \
+	echo "  deps-audit- dependency audit (advisory)" && \
+	echo "  all       - check -> test -> deps-audit" && \
+	echo "  index     - write results/index.json and docs/results_index.json" && \
+	echo "  lineage   - reconstruct & refresh docs/lineage_focus.png" && \
+	echo "Usage:" && \
+	echo "  make lineage RUN=results/<run_dir> K=3" && \
+	echo "  make index" && \
+	echo "Notes:" && \
+	echo "  mmdc (mermaid-cli) optional; install with: npm i -g @mermaid-js/mermaid-cli"
