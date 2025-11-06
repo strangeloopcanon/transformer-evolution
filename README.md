@@ -20,7 +20,7 @@ This project lets you explore the architectural search space through evolutionar
 
 ### 1. Prerequisites
 
-- Python 3.10+
+- Python 3.9+ (tested on 3.9–3.12)
 
 ### 2. Installation
 
@@ -112,9 +112,9 @@ The "subway map" illustrates how core ideas compose into winning candidates over
 
 - See the latest top candidates in `docs/results_index.json` (snapshot) or `results/index.json` (live). The `top_candidates` list under each run contains the best paths, with scores logged at the end of each run.
 
-### Winning Architecture
+### Example Architecture
 
-Here is a diagram of the winning architecture, `nanogpt_tiny.yaml`:
+As a reference, here is a diagram of the example config `examples/nanogpt_tiny.yaml`:
 
 ```mermaid
 graph TD
