@@ -23,6 +23,17 @@ This map shows how core ideas in our search compose into winners:
 
 Single source of truth for runs: `results/index.json` (name, generations, lineage artifacts, top candidates, log, size).
 
+## Maintenance
+
+- Refresh lineage focus (from latest run or a chosen run):
+  - `make lineage` or `make lineage RUN=results/<run_dir> K=3`
+  - Updates `docs/lineage_focus.png` and `docs/lineage_focus.json`.
+- Rebuild run inventory (and snapshot to docs):
+  - `make index` → writes `results/index.json` and `docs/results_index.json`.
+- Optional: prune non-essential YAMLs in a run (moves to `_archive/`, no deletion):
+  - Dry-run: `python scripts/prune_results.py results/<run_dir>`
+  - Apply:   `python scripts/prune_results.py results/<run_dir> --apply`
+
 
 ## Objective
 
