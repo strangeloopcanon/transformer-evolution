@@ -157,6 +157,29 @@ flowchart TD
 - Windowed + quantized KV (NF4) bounds memory while maintaining 8k contexts.
 - RMSNorm + SwiGLU and small‑dim RoPE with scaling are consistent across winners.
 
+#### Latent Recurrence Variant
+
+The latest run also surfaced a structural recurrence candidate (`results/evolution_recurrence_long/gen_16/variant_7.yaml`). Although evolution collapsed its loop count to 1 (surprising evidence that recurrence must justify its FLOPs), the architecture still showcases how the new DSL primitive stitches prelude/body/coda segments together:
+
+```mermaid
+flowchart TB
+  TOK["Input Tokens"] --> EMB_PRE["Prelude (8 attn layers, RoPE)"]
+  EMB_PRE --> LOOP_ENTRY
+  subgraph RECUR["Recurrent Body (3 shared layers)"]
+    direction TB
+    LOOP_ENTRY --> B1["Layer 9"]
+    B1 --> B2["Layer 10"]
+    B2 --> B3["Layer 11"]
+    B3 --> ADAPT["Concat Linear Adapter"]
+    ADAPT --> LOOP_ENTRY
+  end
+  RECUR --> CODA["Coda (1 layer + norm)"]
+  CODA --> READOUT["Readout"]
+```
+
+- Prelude carries most of the depth; the 3-layer recurrent block is shared and re-enters via a concat-linear adapter (noise off in this specimen).
+- Because loops fell back to 1, compute stayed cheap—but future runs can bias mutations so this block keeps >1 iterations long enough to prove its worth.
+
 <!-- legacy diagram removed for clarity -->
 
 ---
