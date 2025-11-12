@@ -127,6 +127,10 @@ The "subway map" illustrates how core ideas composed into winning candidates ove
 ### Current Standouts
 
 - See the latest top candidates in `docs/results_index.json` (snapshot) or `results/index.json` (live). The `top_candidates` list under each run contains the best paths, with scores logged at the end of each run.
+- **Latest recurrence-focused run (`results/evolution_recurrence_long`, 20 generations, Nov 2025):**
+  - `gen_10/variant_9.yaml` (score ≈ 0.0356). 512-d route stack with local attention (512 window), retention, and SSM plus two-level hierarchy. It dropped recurrence entirely, reinforcing that latent depth must earn its FLOPs to persist.
+  - `gen_10/immigrant_1.yaml`. 640-d router combining attention/retention/SSM, FiLM + LoRA + Freebits conditioning, FP8 windowed KV, and a token-level depth router—our strongest long-context baseline for 8k tokens.
+  - `gen_16/variant_7.yaml`. Only top-five model that kept the recurrence primitive (prelude 8 / body 3 / coda 1 with concat-linear adapter). Loops collapsed to 1 during evolution, a surprising signal that we need to bias future runs so recurrent unrolls stay >1 until they prove useless.
 
 ### Evolved Architecture (current winner)
 
