@@ -22,3 +22,14 @@ def test_simple_builder_conditional_warning() -> None:
     cfg = load_validate_yaml(Path("examples/latent.yaml"))
     model, meta = build_simple_model(cfg)
     assert meta.dim == cfg.arch.d_model
+
+
+def test_simple_builder_with_recurrence() -> None:
+    cfg = load_validate_yaml(Path("examples/recurrence.yaml"))
+    model, _ = build_simple_model(cfg)
+    vocab = cfg.train.vocab_size or 256
+    input_ids = torch.randint(0, vocab, (1, 8))
+    logits = model(input_ids)
+    assert logits.shape == (1, 8, vocab)
+    assert model.stack.recurrence_cfg is not None
+    assert model.stack._resolve_recurrence_loops() == cfg.arch.recurrence.loops.train

@@ -20,6 +20,9 @@ from .models import (
     HierarchyConfig,
     HierarchyLevel,
     DepthRouter,
+    RecurrenceConfig,
+    RecurrenceLoops,
+    RecurrenceSchedule,
 )
 from .validators import run_additional_checks
 
@@ -30,6 +33,72 @@ MutationFn = Callable[[DSLConfig], Optional[DSLConfig]]
 def _clone(cfg: DSLConfig) -> DSLConfig:
     # model_copy with deep=True works on Pydantic v2.
     return cfg.model_copy(deep=True)
+
+
+def _random_recurrence_config(total_layers: int) -> RecurrenceConfig:
+    total_layers = max(1, total_layers)
+    if total_layers == 1:
+        prelude = 0
+        body = 1
+    else:
+        prelude = random.randint(0, total_layers - 1)
+        remaining = total_layers - prelude
+        body = random.randint(1, remaining)
+    coda = max(0, total_layers - prelude - body)
+    adapter = random.choice(["identity", "residual", "concat_linear"])
+    noise_std = 0.0
+    if random.random() < 0.4:
+        noise_std = round(random.uniform(0.01, 0.08), 3)
+    train_loops = random.choice([1, 2, 3, 4])
+    eval_loops = train_loops + random.choice([0, 1, 2])
+    loops = RecurrenceLoops(train=train_loops, eval=eval_loops if eval_loops != train_loops else None)
+    if random.random() < 0.35:
+        loops.schedule = RecurrenceSchedule(
+            kind="poisson_lognormal",
+            mean=round(random.uniform(1.5, 3.5), 2),
+            sigma=round(random.uniform(0.2, 0.6), 2),
+            min=1,
+            max=max(train_loops * 2, 4),
+            curriculum=random.choice(["linear", "sqrt"]),
+            warmup_steps=random.randint(200, 2000),
+            backprop=random.randint(2, 8),
+        )
+    return RecurrenceConfig(
+        prelude=prelude,
+        body=body,
+        coda=coda,
+        adapter=adapter,
+        noise_std=noise_std,
+        loops=loops,
+    )
+
+
+def _reshuffle_recurrence(rec: RecurrenceConfig, total_layers: Optional[int] = None) -> None:
+    total = total_layers or (rec.prelude + rec.body + rec.coda)
+    new_cfg = _random_recurrence_config(total)
+    rec.prelude = new_cfg.prelude
+    rec.body = new_cfg.body
+    rec.coda = new_cfg.coda
+    rec.adapter = new_cfg.adapter
+    rec.noise_std = new_cfg.noise_std
+    rec.loops = new_cfg.loops
+
+
+def _mutate_recurrence_config(rec: RecurrenceConfig, total_layers: Optional[int] = None) -> None:
+    if random.random() < 0.5:
+        _reshuffle_recurrence(rec, total_layers=total_layers)
+        return
+    loops = rec.loops or RecurrenceLoops(train=1)
+    loops.train = max(1, loops.train + random.choice([-1, 0, 1]))
+    if loops.eval is None or random.random() < 0.4:
+        loops.eval = max(1, loops.train + random.choice([0, 1, 2]))
+    else:
+        loops.eval = max(1, loops.eval + random.choice([-1, 0, 1]))
+    if random.random() < 0.3:
+        rec.adapter = random.choice(["identity", "residual", "concat_linear"])
+    if random.random() < 0.3:
+        rec.noise_std = round(max(0.0, rec.noise_std + random.choice([-0.02, 0.0, 0.02])), 3)
+    rec.loops = loops
 
 
 def _iter_attention_mixers(cfg: DSLConfig) -> Iterable[Mixer]:
@@ -245,6 +314,74 @@ def _add_or_mutate_depth_router(cfg: DSLConfig) -> Optional[DSLConfig]:
     return clone
 
 
+def _toggle_arch_recurrence(cfg: DSLConfig) -> Optional[DSLConfig]:
+    if cfg.arch.pipeline:
+        return None
+    clone = _clone(cfg)
+    if clone.arch.recurrence is None:
+        clone.arch.recurrence = _random_recurrence_config(clone.arch.n_layers)
+    else:
+        if random.random() < 0.3:
+            clone.arch.recurrence = None
+        else:
+            _mutate_recurrence_config(clone.arch.recurrence, clone.arch.n_layers)
+    run_additional_checks(clone)
+    return clone
+
+
+def _module_recurrence_mutation(cfg: DSLConfig) -> Optional[DSLConfig]:
+    modules = cfg.arch.modules
+    if not modules:
+        return None
+    candidates = [
+        (name, module)
+        for name, module in modules.items()
+        if module.kind == "transformer" and module.n_layers
+    ]
+    if not candidates:
+        return None
+    clone = _clone(cfg)
+    name, module = random.choice(candidates)
+    target = clone.arch.modules[name]
+    assert target.n_layers is not None
+    if target.recurrence is None:
+        target.recurrence = _random_recurrence_config(target.n_layers)
+    else:
+        if random.random() < 0.25:
+            target.recurrence = None
+        else:
+            _mutate_recurrence_config(target.recurrence, target.n_layers)
+    run_additional_checks(clone)
+    return clone
+
+
+def _tune_existing_recurrence(cfg: DSLConfig) -> Optional[DSLConfig]:
+    targets = []
+    if cfg.arch.recurrence is not None:
+        targets.append(("arch", None))
+    if cfg.arch.modules:
+        for name, module in cfg.arch.modules.items():
+            if module.kind == "transformer" and module.recurrence is not None:
+                targets.append(("module", name))
+    if not targets:
+        return None
+    clone = _clone(cfg)
+    target_kind, name = random.choice(targets)
+    if target_kind == "arch":
+        rec = clone.arch.recurrence
+        if rec is None:
+            return None
+        _mutate_recurrence_config(rec, clone.arch.n_layers)
+    else:
+        assert name is not None
+        module = clone.arch.modules[name]
+        if module.recurrence is None or module.n_layers is None:
+            return None
+        _mutate_recurrence_config(module.recurrence, module.n_layers)
+    run_additional_checks(clone)
+    return clone
+
+
 def _toggle_kv_policy(cfg: DSLConfig) -> Optional[DSLConfig]:
     """Add or mutate a global KV policy for the arch."""
     clone = _clone(cfg)
@@ -452,6 +589,9 @@ MUTATORS: List[MutationFn] = [
     _local_window_mutation,
     _add_or_mutate_hierarchy,
     _add_or_mutate_depth_router,
+    _toggle_arch_recurrence,
+    _module_recurrence_mutation,
+    _tune_existing_recurrence,
     _toggle_kv_policy,
     _toggle_to_par_mutation,
     _module_ffn_mutation,
@@ -466,16 +606,31 @@ MUTATORS: List[MutationFn] = [
 def generate_mutations(cfg: DSLConfig, *, rng: Optional[random.Random] = None) -> List[DSLConfig]:
     """Produce a small set of mutated configs that remain valid."""
 
+    external_rng = rng
     rng = rng or random.Random()
+    restore_random_state = False
+    global_state = None
+    if external_rng is not None:
+        restore_random_state = True
+        global_state = random.getstate()
+        random.seed(external_rng.getrandbits(64))
+
+    base_dump = cfg.model_dump()
     variants: List[DSLConfig] = []
-    for mut in MUTATORS:
-        try:
-            mutated = mut(cfg)
-        except DSLValidationError:
-            continue
-        if mutated is None:
-            continue
-        variants.append(mutated)
+    try:
+        for mut in MUTATORS:
+            try:
+                mutated = mut(cfg)
+            except DSLValidationError:
+                continue
+            if mutated is None:
+                continue
+            if mutated.model_dump() == base_dump:
+                continue
+            variants.append(mutated)
+    finally:
+        if restore_random_state and global_state is not None:
+            random.setstate(global_state)
 
     rng.shuffle(variants)
     return variants

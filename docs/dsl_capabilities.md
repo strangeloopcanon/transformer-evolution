@@ -20,7 +20,7 @@ flowchart TB
     FFN["FFN\nDense (mult x act)\nMoE (experts, topk, capacity)"]
     POS["Positional signals\nRoPE (theta, dims, scaling: NTK/linear/YaRN/LongRoPE)\nALiBi / RelBias / Learned / XPOS"]
     COND["Conditioning\nSources (pool-mlp, segment)\nOps (FiLM/add/scale/LoRA)\nReg (freebits, kappa)"]
-    STRUCT["Structure\nHierarchy levels (downsample/up_proj)\nDepth router (token/layer, budget, tau, min_layers)\nResidual knobs"]
+    STRUCT["Structure\nHierarchy levels (downsample/up_proj)\nDepth router (token/layer, budget, tau, min_layers)\nResidual knobs\nRecurrence layout (prelude/body/coda + adapters + schedules)"]
     MODULES["modules{}\ntransformer / embedding / latent_sampler / readout / custom\nper-module params/budgets"]
     PIPE["pipeline[]\nstage graph (repeat/mode)\ninputs, kv_from, mem_from\ntrain_only / prefill_only / budgets"]
   end
@@ -42,7 +42,7 @@ flowchart TB
   BUDGET --> PIPE
 ```
 
-- Start from `arch`: choose the core stack, give it mixers (attention, retention, SSM, long conv), FFNs, positional encodings, conditioning, and structural knobs such as hierarchy or depth routing.
+- Start from `arch`: choose the core stack, give it mixers (attention, retention, SSM, long conv), FFNs, positional encodings, conditioning, and structural knobs such as hierarchy, depth routing, or the new recurrence splitter (prelude/body/coda + adapter + schedule).
 - Add optional `modules{}` for embeddings, latent samplers, readouts, or extra transformer stacks, then wire them via `pipeline[]` with explicit stage modes, repeats, and memory/KV routing.
 - The `train` block anchors optimizer assumptions (ctx length, lr, wd, betas, clip, dtype) plus per-run budgets, while the top-level `budget` sets global params/flops targets that guide search and pruning.
 

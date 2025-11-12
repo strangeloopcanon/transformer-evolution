@@ -1,0 +1,40 @@
+arch:
+  d_model: 256
+  n_layers: 4
+  norm: RMSNorm
+  mix_unit:
+    kind: "single"
+    mixer: { kind: "Attention", heads: 4, groups: 2, stencil: { kind: "full" } }
+  ffn: { kind: "dense", mult: 2.0, act: "gelu" }
+  pos: { kind: "rope", rope: { theta: 10000, dims: 32 } }
+  modules:
+    token_embed:
+      kind: "embedding"
+      d_model: 256
+    encoder:
+      kind: "transformer"
+      d_model: 256
+      n_layers: 4
+      mix_unit:
+        kind: "single"
+        mixer: { kind: "Attention", heads: 4, groups: 2, stencil: { kind: "full" }, pos: "rope" }
+      ffn: { kind: "dense", mult: 2.0, act: "gelu" }
+      norm: RMSNorm
+      pos: { kind: "rope", rope: { theta: 10000, dims: 32 } }
+      recurrence:
+        prelude: 1
+        body: 2
+        coda: 1
+        adapter: "residual"
+        loops: { train: 2, eval: 3 }
+    readout:
+      kind: "readout"
+      output_dim: 512
+  pipeline:
+    - { name: embed, module: token_embed, kind: "embedding" }
+    - { name: encoder, module: encoder }
+    - { name: logits, module: readout, kind: "readout", inputs: ["encoder"] }
+train:
+  ctx_len: 256
+  dtype: fp16
+  vocab_size: 512

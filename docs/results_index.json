@@ -60,6 +60,26 @@
       "top_candidates": [],
       "log": null,
       "size_mb": 0.22
+    },
+    {
+      "name": "evolution_recurrence_long",
+      "path": "results/evolution_recurrence_long",
+      "generations": 20,
+      "lineage": {
+        "lineage.json": true,
+        "lineage_reconstructed.json": false,
+        "lineage_focus.json": false,
+        "lineage_focus.png": false
+      },
+      "top_candidates": [
+        "results/evolution_recurrence_long/gen_10/variant_9.yaml",
+        "results/evolution_recurrence_long/gen_10/immigrant_1.yaml",
+        "results/evolution_recurrence_long/gen_13/immigrant_0.yaml",
+        "results/evolution_recurrence_long/gen_18/immigrant_1.yaml",
+        "results/evolution_recurrence_long/gen_16/variant_7.yaml"
+      ],
+      "log": null,
+      "size_mb": 0.5
     }
   ]
 }

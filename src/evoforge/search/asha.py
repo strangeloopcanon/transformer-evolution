@@ -120,6 +120,20 @@ def run_asha(
                         "tokens": 0,
                         "error": str(err),
                     }
+                except Exception as err:
+                    candidate.result = None
+                    candidate.score = math.inf
+                    history_entry = {
+                        "cfg_path": str(candidate.cfg_path),
+                        "steps": milestone,
+                        "score": candidate.score,
+                        "tokens": 0,
+                        "error": f"{err.__class__.__name__}: {err}",
+                    }
+                    print(
+                        f"[evoforge] candidate {candidate.cfg_path} failed at {milestone} steps: {err}",
+                        flush=True,
+                    )
                 evaluated += 1
                 history.append(history_entry)
                 results.append(candidate)

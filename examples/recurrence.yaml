@@ -1,0 +1,31 @@
+arch:
+  d_model: 384
+  n_layers: 6
+  norm: RMSNorm
+  mix_unit:
+    kind: "single"
+    mixer: { kind: "Attention", heads: 6, groups: 6, stencil: { kind: "full" } }
+  ffn: { kind: "dense", mult: 2.0, act: "swiglu" }
+  pos: { kind: "rope", rope: { theta: 10000, dims: 48 } }
+  recurrence:
+    prelude: 2
+    body: 2
+    coda: 2
+    adapter: "concat_linear"
+    noise_std: 0.05
+    loops:
+      train: 2
+      eval: 3
+      schedule:
+        kind: "poisson_lognormal"
+        mean: 2.0
+        sigma: 0.5
+        min: 1
+        max: 4
+        curriculum: "linear"
+        warmup_steps: 500
+        backprop: 4
+train:
+  ctx_len: 256
+  dtype: fp16
+  vocab_size: 256

@@ -13,6 +13,7 @@ from evoforge.dsl.models import (
     Mixer,
     ModuleSpec,
     PipelineStage,
+    RecurrenceConfig,
     StencilConfig,
 )
 
@@ -380,6 +381,7 @@ class GenericTransformerStack(nn.Module):
         ffn_act: str,
         max_seq_len: int,
         causal: bool,
+        recurrence: Optional[RecurrenceConfig] = None,
     ) -> None:
         super().__init__()
         self.blocks = nn.ModuleList(
@@ -397,11 +399,72 @@ class GenericTransformerStack(nn.Module):
             ]
         )
         self.norm = build_norm(norm_kind, dim)
+        self.recurrence = recurrence
+        if recurrence:
+            self._rec_prelude = recurrence.prelude
+            self._rec_body = recurrence.body
+            self._rec_coda = recurrence.coda
+            self._rec_adapter = (
+                nn.Linear(dim * 2, dim) if recurrence.adapter == "concat_linear" else None
+            )
+        else:
+            self._rec_prelude = 0
+            self._rec_body = 0
+            self._rec_coda = 0
+            self._rec_adapter = None
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        for block in self.blocks:
-            x = block(x)
-        return self.norm(x)
+        if not self.recurrence:
+            for block in self.blocks:
+                x = block(x)
+            return self.norm(x)
+
+        idx = 0
+        hidden = x
+        for _ in range(self._rec_prelude):
+            hidden = self.blocks[idx](hidden)
+            idx += 1
+        anchor = hidden
+        state = self._inject_recurrence_noise(anchor)
+        loops = self._resolve_recurrence_loops()
+        for _ in range(loops):
+            loop_state = state
+            for offset in range(self._rec_body):
+                loop_state = self.blocks[idx + offset](loop_state)
+            state = self._apply_recurrence_adapter(loop_state, anchor)
+        idx += self._rec_body
+        hidden = state
+        for _ in range(self._rec_coda):
+            hidden = self.blocks[idx](hidden)
+            idx += 1
+        return self.norm(hidden)
+
+    def _resolve_recurrence_loops(self) -> int:
+        if not self.recurrence or not self.recurrence.loops:
+            return 1
+        loops = self.recurrence.loops
+        base = loops.train if self.training else (loops.eval or loops.train)
+        return max(1, int(base))
+
+    def _apply_recurrence_adapter(self, state: torch.Tensor, anchor: torch.Tensor) -> torch.Tensor:
+        cfg = self.recurrence
+        if not cfg:
+            return state
+        if cfg.adapter == "identity":
+            return state
+        if cfg.adapter == "residual":
+            return state + anchor
+        if cfg.adapter == "concat_linear" and self._rec_adapter is not None:
+            combined = torch.cat([anchor, state], dim=-1)
+            return self._rec_adapter(combined)
+        return state
+
+    def _inject_recurrence_noise(self, anchor: torch.Tensor) -> torch.Tensor:
+        cfg = self.recurrence
+        if not cfg or cfg.noise_std <= 0:
+            return anchor
+        noise = torch.randn_like(anchor) * cfg.noise_std
+        return anchor + noise
 
 
 class TransformerStage(nn.Module):
@@ -432,6 +495,7 @@ class TransformerStage(nn.Module):
             ffn_act=ffn_act,
             max_seq_len=max_seq_len,
             causal=causal,
+            recurrence=module.recurrence,
         )
 
     def forward(self, hidden: torch.Tensor, *_: torch.Tensor) -> torch.Tensor:

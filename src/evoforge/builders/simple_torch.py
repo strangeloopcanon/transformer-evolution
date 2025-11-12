@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 
 from evoforge.dsl.errors import DSLValidationError
-from evoforge.dsl.models import DSLConfig
+from evoforge.dsl.models import DSLConfig, RecurrenceConfig
 
 from .utils import summarize_architecture
 
@@ -121,6 +121,7 @@ class TransformerStack(nn.Module):
         ffn_act: str,
         norm_kind: str,
         max_seq_len: int,
+        recurrence: Optional[RecurrenceConfig] = None,
         causal: bool = True,
     ) -> None:
         super().__init__()
@@ -131,6 +132,19 @@ class TransformerStack(nn.Module):
             [SimpleBlock(dim, heads, ffn_mult, norm_kind, ffn_act) for _ in range(n_layers)]
         )
         self.final_norm = build_norm(norm_kind, dim)
+        self.recurrence_cfg = recurrence
+        if recurrence:
+            self._rec_prelude = recurrence.prelude
+            self._rec_body = recurrence.body
+            self._rec_coda = recurrence.coda
+            self._rec_adapter = (
+                nn.Linear(dim * 2, dim) if recurrence.adapter == "concat_linear" else None
+            )
+        else:
+            self._rec_prelude = 0
+            self._rec_body = 0
+            self._rec_coda = 0
+            self._rec_adapter = None
 
     def _causal_mask(self, length: int, device: torch.device) -> Optional[torch.Tensor]:
         if not self.causal:
@@ -143,10 +157,57 @@ class TransformerStack(nn.Module):
         seq_len = x.size(1)
         x = x + self.pos_embed(x)
         mask = self._causal_mask(seq_len, x.device)
-        for block in self.blocks:
-            x = block(x, mask)
-        x = self.final_norm(x)
-        return x
+        if not self.recurrence_cfg:
+            for block in self.blocks:
+                x = block(x, mask)
+            return self.final_norm(x)
+
+        idx = 0
+        hidden = x
+        for _ in range(self._rec_prelude):
+            hidden = self.blocks[idx](hidden, mask)
+            idx += 1
+        anchor = hidden
+        state = self._inject_recurrence_noise(anchor)
+        loops = self._resolve_recurrence_loops()
+        for _ in range(loops):
+            step_state = state
+            for offset in range(self._rec_body):
+                step_state = self.blocks[idx + offset](step_state, mask)
+            state = self._apply_recurrence_adapter(step_state, anchor)
+        idx += self._rec_body
+        hidden = state
+        for _ in range(self._rec_coda):
+            hidden = self.blocks[idx](hidden, mask)
+            idx += 1
+        return self.final_norm(hidden)
+
+    def _resolve_recurrence_loops(self) -> int:
+        if not self.recurrence_cfg or not self.recurrence_cfg.loops:
+            return 1
+        loops = self.recurrence_cfg.loops
+        base = loops.train if self.training else (loops.eval or loops.train)
+        return max(1, int(base))
+
+    def _apply_recurrence_adapter(self, state: torch.Tensor, anchor: torch.Tensor) -> torch.Tensor:
+        cfg = self.recurrence_cfg
+        if not cfg:
+            return state
+        if cfg.adapter == "identity":
+            return state
+        if cfg.adapter == "residual":
+            return state + anchor
+        if cfg.adapter == "concat_linear" and self._rec_adapter is not None:
+            combined = torch.cat([anchor, state], dim=-1)
+            return self._rec_adapter(combined)
+        return state
+
+    def _inject_recurrence_noise(self, anchor: torch.Tensor) -> torch.Tensor:
+        cfg = self.recurrence_cfg
+        if not cfg or cfg.noise_std <= 0:
+            return anchor
+        noise = torch.randn_like(anchor) * cfg.noise_std
+        return anchor + noise
 
 
 class SimpleTransformer(nn.Module):
@@ -160,10 +221,12 @@ class SimpleTransformer(nn.Module):
         ffn_act: str,
         norm_kind: str,
         max_seq_len: int,
+        recurrence: Optional[RecurrenceConfig] = None,
     ) -> None:
         super().__init__()
         self.vocab_size = vocab_size
         self.dim = dim
+        self.recurrence_cfg = recurrence
         self.token_embed = nn.Embedding(vocab_size, dim)
         self.stack = TransformerStack(
             dim=dim,
@@ -173,6 +236,7 @@ class SimpleTransformer(nn.Module):
             ffn_act=ffn_act,
             norm_kind=norm_kind,
             max_seq_len=max_seq_len,
+            recurrence=recurrence,
             causal=True,
         )
         self.lm_head = nn.Linear(dim, vocab_size, bias=False)
@@ -236,6 +300,7 @@ def build_simple_model(
         ffn_act=ffn_act,
         norm_kind=cfg.arch.norm,
         max_seq_len=ctx_len,
+        recurrence=cfg.arch.recurrence,
     )
     meta = BuildMetadata(
         vocab_size=vocab,

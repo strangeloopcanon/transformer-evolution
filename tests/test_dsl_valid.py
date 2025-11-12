@@ -23,6 +23,8 @@ EXAMPLES = [
     "examples/mla.yaml",
     "examples/hierarchical.yaml",
     "examples/free_transformer_pipeline.yaml",
+    "examples/recurrence.yaml",
+    "examples/pipeline_recurrence.yaml",
 ]
 
 
@@ -145,6 +147,88 @@ arch:
   modules: {}
   pipeline:
     - { name: start, module: "missing" }
+train: { ctx_len: 512, dtype: fp16 }
+        """
+    )
+    with pytest.raises(DSLValidationError):
+        load_validate_yaml(p)
+
+
+def test_recurrence_layer_sum_guard(tmp_path: Path) -> None:
+    p = tmp_path / "rec_bad.yaml"
+    p.write_text(
+        """
+arch:
+  d_model: 256
+  n_layers: 4
+  norm: RMSNorm
+  mix_unit:
+    kind: "single"
+    mixer: { kind: "Attention", heads: 4 }
+  ffn: { kind: "dense", mult: 2.0, act: "relu" }
+  pos: { kind: "rope" }
+  recurrence:
+    prelude: 1
+    body: 1
+    coda: 1
+train: { ctx_len: 512, dtype: fp16 }
+        """
+    )
+    with pytest.raises(DSLValidationError):
+        load_validate_yaml(p)
+
+
+def test_recurrence_disallowed_with_pipeline(tmp_path: Path) -> None:
+    p = tmp_path / "rec_pipeline.yaml"
+    p.write_text(
+        """
+arch:
+  d_model: 256
+  n_layers: 4
+  norm: RMSNorm
+  mix_unit:
+    kind: "single"
+    mixer: { kind: "Attention", heads: 4 }
+  ffn: { kind: "dense", mult: 2.0, act: "relu" }
+  pos: { kind: "rope" }
+  recurrence:
+    prelude: 1
+    body: 2
+    coda: 1
+  modules:
+    enc: { kind: "transformer", n_layers: 2, mix_unit: { kind: "single", mixer: { kind: "Attention", heads: 4 } }, ffn: { kind: "dense", mult: 2.0, act: "relu" }, norm: "RMSNorm", pos: { kind: "rope" } }
+  pipeline:
+    - { name: tok, kind: "embedding", module: enc }
+train: { ctx_len: 512, dtype: fp16 }
+        """
+    )
+    with pytest.raises(DSLValidationError):
+        load_validate_yaml(p)
+
+
+def test_module_recurrence_requires_layers(tmp_path: Path) -> None:
+    p = tmp_path / "module_rec_bad.yaml"
+    p.write_text(
+        """
+arch:
+  d_model: 256
+  n_layers: 4
+  norm: RMSNorm
+  mix_unit:
+    kind: "single"
+    mixer: { kind: "Attention", heads: 4 }
+  ffn: { kind: "dense", mult: 2.0, act: "relu" }
+  pos: { kind: "rope" }
+  modules:
+    enc:
+      kind: "transformer"
+      mix_unit: { kind: "single", mixer: { kind: "Attention", heads: 4 } }
+      ffn: { kind: "dense", mult: 2.0, act: "relu" }
+      norm: RMSNorm
+      pos: { kind: "rope" }
+      recurrence: { prelude: 1, body: 1, coda: 1 }
+  pipeline:
+    - { name: tok, kind: "embedding" }
 train: { ctx_len: 512, dtype: fp16 }
         """
     )

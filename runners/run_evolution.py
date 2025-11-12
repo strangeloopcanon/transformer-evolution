@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 from evoforge.search.asha import ASHAConfig
@@ -43,16 +44,70 @@ def main() -> int:
         default=2,
         help="Number of additional novelty-picked parents beyond top-k",
     )
+    parser.add_argument(
+        "--replacement",
+        choices=["score", "aging"],
+        default="score",
+        help="Replacement policy when overflowing population (default: score)",
+    )
+    parser.add_argument(
+        "--overflow-factor",
+        type=float,
+        default=1.0,
+        help="Allow generating up to population*factor then trim (use with --replacement)",
+    )
+    parser.add_argument(
+        "--top-index",
+        type=Path,
+        default=Path("docs/results_index.json"),
+        help="Optional JSON index with prior runs whose top candidates can seed evolution",
+    )
+    parser.add_argument(
+        "--top-count",
+        type=int,
+        default=0,
+        help="If >0, pull up to this many top candidate configs from --top-index and add as seeds",
+    )
     args = parser.parse_args()
 
-    seeds = []
+    base_seeds = []
     for item in args.configs:
         path = Path(item)
         if path.is_dir():
-            seeds.extend(sorted(path.glob("*.yaml")))
+            base_seeds.extend(sorted(path.glob("*.yaml")))
         else:
-            seeds.append(path)
-    seeds = [p for p in seeds if p.exists()]
+            base_seeds.append(path)
+    seeds = [p for p in base_seeds if p.exists()]
+
+    if args.top_count > 0 and args.top_index:
+        top_paths: list[Path] = []
+        if args.top_index.exists():
+            try:
+                data = json.loads(args.top_index.read_text())
+                for run in data.get("runs", []):
+                    for cand in run.get("top_candidates", []):
+                        cand_path = Path(cand)
+                        if not cand_path.is_absolute():
+                            cand_path = Path(cand)
+                        if cand_path.exists():
+                            top_paths.append(cand_path)
+                        if len(top_paths) >= args.top_count:
+                            break
+                    if len(top_paths) >= args.top_count:
+                        break
+            except Exception as exc:  # pragma: no cover - defensive
+                print(f"[warn] failed to parse {args.top_index}: {exc}")
+        seeds.extend(top_paths)
+
+    deduped = []
+    seen = set()
+    for path in seeds:
+        resolved = Path(path).resolve()
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        deduped.append(resolved)
+    seeds = deduped
     if not seeds:
         raise SystemExit("No seed configs found")
 
@@ -76,6 +131,8 @@ def main() -> int:
         macro_prob=args.macro_prob,
         crossover_prob=args.crossover_prob,
         novelty_extra=args.novelty_extra,
+        replacement=args.replacement,
+        overflow_factor=args.overflow_factor,
     )
 
     archive = run_evolution(seeds, args.output, evo_cfg=evo_cfg)

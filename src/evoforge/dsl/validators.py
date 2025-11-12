@@ -3,7 +3,16 @@ from __future__ import annotations
 from typing import Dict, Iterable, List, Optional
 
 from .errors import DSLValidationError
-from .models import Arch, Cond, DSLConfig, MixUnit, Mixer, ModuleSpec, PipelineStage
+from .models import (
+    Arch,
+    Cond,
+    DSLConfig,
+    MixUnit,
+    Mixer,
+    ModuleSpec,
+    PipelineStage,
+    RecurrenceSchedule,
+)
 
 
 def _iter_mixers(mix_unit: MixUnit) -> Iterable[Mixer]:
@@ -157,6 +166,8 @@ def _validate_modules(modules: Optional[Dict[str, ModuleSpec]]) -> None:
                 or module.pos is None
             ):
                 raise DSLValidationError(f"Transformer module '{name}' missing core fields")
+            if module.recurrence:
+                _validate_module_recurrence(name, module)
 
 
 def _validate_pipeline(arch: Arch) -> None:
@@ -184,6 +195,59 @@ def _validate_pipeline(arch: Arch) -> None:
                 )
 
 
+def _validate_module_recurrence(name: str, module: ModuleSpec) -> None:
+    rec = module.recurrence
+    if rec is None:
+        return
+    if module.n_layers is None:
+        raise DSLValidationError(f"Module '{name}' with recurrence must set n_layers")
+    total = rec.prelude + rec.body + rec.coda
+    if total != module.n_layers:
+        raise DSLValidationError(
+            f"Module '{name}' recurrence layers ({total}) must equal module.n_layers ({module.n_layers})"
+        )
+    loops = rec.loops
+    if loops:
+        train_loops = loops.train
+        eval_loops = loops.eval if loops.eval else train_loops
+        if train_loops < 1 or eval_loops < 1:
+            raise DSLValidationError(
+                f"Module '{name}' recurrence loops must be >= 1 (got train={train_loops}, eval={eval_loops})"
+            )
+        if loops.schedule:
+            _validate_recurrence_schedule(loops.schedule)
+
+
+def _validate_recurrence(arch: Arch) -> None:
+    recurrence = arch.recurrence
+    if recurrence is None:
+        return
+    if arch.pipeline:
+        raise DSLValidationError("recurrence is not supported alongside pipeline definitions yet")
+    total = recurrence.prelude + recurrence.body + recurrence.coda
+    if total != arch.n_layers:
+        raise DSLValidationError("recurrence layers must sum to arch.n_layers")
+    loops = recurrence.loops
+    train_loops = loops.train if loops else 1
+    eval_loops = loops.eval if loops and loops.eval else train_loops
+    if train_loops < 1 or eval_loops < 1:
+        raise DSLValidationError("recurrence loops must be >= 1")
+    schedule = loops.schedule if loops else None
+    if schedule:
+        _validate_recurrence_schedule(schedule)
+
+
+def _validate_recurrence_schedule(schedule: RecurrenceSchedule) -> None:
+    if schedule.kind != "fixed":
+        if schedule.mean is None or schedule.mean <= 0:
+            raise DSLValidationError("recurrence schedule requires positive 'mean'")
+        if schedule.sigma is not None and schedule.sigma < 0:
+            raise DSLValidationError("recurrence schedule sigma must be >= 0")
+    if schedule.min is not None and schedule.max is not None:
+        if schedule.min > schedule.max:
+            raise DSLValidationError("recurrence schedule min cannot exceed max")
+
+
 def run_additional_checks(cfg: DSLConfig) -> None:
     arch = cfg.arch
     _ensure_mix_unit_shape(arch)
@@ -194,6 +258,7 @@ def run_additional_checks(cfg: DSLConfig) -> None:
     _validate_kv_policy(arch)
     _validate_residual(arch)
     _validate_depth_router(arch)
+    _validate_recurrence(arch)
     _validate_hierarchy(arch)
     _validate_modules(arch.modules)
     _validate_pipeline(arch)

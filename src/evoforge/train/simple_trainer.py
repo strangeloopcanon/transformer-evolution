@@ -4,7 +4,7 @@ import itertools
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
 import torch
 import torch.nn.functional as F
@@ -42,7 +42,7 @@ def _estimate_flops(cfg: DSLConfig, tokens: int) -> float:
     d_model = arch.d_model
     mix_unit = arch.mix_unit
     ffn_mult = arch.ffn.mult
-    layers = arch.n_layers
+    layers, adapter_kind, loops = _resolve_recurrence_layers(cfg)
     heads = (
         (mix_unit.mixer.heads if mix_unit.mixer else d_model // 64) if mix_unit else d_model // 64
     )
@@ -50,7 +50,32 @@ def _estimate_flops(cfg: DSLConfig, tokens: int) -> float:
     attn_flops = 4 * d_model * d_model + 2 * (heads or 1) * (d_model // (heads or 1)) * tokens
     ffn_flops = 2 * d_model * int(ffn_mult * d_model)
     per_layer = attn_flops + ffn_flops
-    return per_layer * layers * tokens
+    total = per_layer * layers * tokens
+    total += _adapter_extra_flops(adapter_kind, d_model, tokens, loops)
+    return total
+
+
+def _resolve_recurrence_layers(cfg: DSLConfig) -> Tuple[int, Optional[str], int]:
+    rec = cfg.arch.recurrence
+    if not rec:
+        return cfg.arch.n_layers, None, 1
+    loops_cfg = rec.loops
+    loops = loops_cfg.train if loops_cfg else 1
+    loops = max(1, int(loops))
+    effective_layers = rec.prelude + rec.coda + rec.body * loops
+    return effective_layers, rec.adapter, loops
+
+
+def _adapter_extra_flops(
+    adapter_kind: Optional[str], dim: int, tokens: int, loops: int
+) -> float:
+    if not adapter_kind or adapter_kind == "identity" or loops <= 0:
+        return 0.0
+    if adapter_kind == "residual":
+        return float(tokens * dim * loops)
+    if adapter_kind == "concat_linear":
+        return float(tokens * loops * 4 * dim * dim)
+    return 0.0
 
 
 def _enforce_train_budget(cfg: DSLConfig, steps: int, batch_tokens: int) -> None:

@@ -187,6 +187,32 @@ class DepthRouter(BaseModel):
     min_layers: Optional[int] = Field(default=None, ge=0)
 
 
+class RecurrenceSchedule(BaseModel):
+    kind: Literal["fixed", "poisson_lognormal"] = "fixed"
+    mean: Optional[float] = None
+    sigma: Optional[float] = Field(default=None, ge=0.0)
+    min: Optional[int] = Field(default=None, ge=1)
+    max: Optional[int] = Field(default=None, ge=1)
+    curriculum: Optional[Literal["none", "linear", "sqrt"]] = None
+    warmup_steps: Optional[int] = Field(default=None, ge=1)
+    backprop: Optional[int] = Field(default=None, ge=1)
+
+
+class RecurrenceLoops(BaseModel):
+    train: int = Field(default=1, ge=1)
+    eval: Optional[int] = Field(default=None, ge=1)
+    schedule: Optional[RecurrenceSchedule] = None
+
+
+class RecurrenceConfig(BaseModel):
+    prelude: int = Field(default=0, ge=0)
+    body: int = Field(..., ge=1)
+    coda: int = Field(default=0, ge=0)
+    adapter: Literal["identity", "residual", "concat_linear"] = "identity"
+    noise_std: float = Field(default=0.0, ge=0.0)
+    loops: RecurrenceLoops = Field(default_factory=RecurrenceLoops)
+
+
 class ModuleSpec(BaseModel):
     kind: Literal["transformer", "latent_sampler", "readout", "embedding", "custom"] = "transformer"
     d_model: Optional[int] = None
@@ -200,6 +226,7 @@ class ModuleSpec(BaseModel):
     residual: Optional[ResidualConfig] = None
     hierarchy: Optional[HierarchyConfig] = None
     depth_router: Optional[DepthRouter] = None
+    recurrence: Optional[RecurrenceConfig] = None
     latent: Optional[dict] = None
     output_dim: Optional[int] = None
     params: Optional[dict] = None
@@ -235,6 +262,7 @@ class Arch(BaseModel):
     residual: Optional[ResidualConfig] = None
     hierarchy: Optional[HierarchyConfig] = None
     depth_router: Optional[DepthRouter] = None
+    recurrence: Optional[RecurrenceConfig] = None
     modules: Optional[Dict[str, ModuleSpec]] = None
     pipeline: Optional[List[PipelineStage]] = None
 

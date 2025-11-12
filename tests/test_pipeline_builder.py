@@ -68,3 +68,14 @@ def test_retention_and_ssm_mixers(tmp_path) -> None:
     assert torch.isfinite(logits).all()
     loss = logits.mean()
     loss.backward()
+
+
+def test_pipeline_recurrence_stage_loops() -> None:
+    cfg = load_validate_yaml(Path("examples/pipeline_recurrence.yaml"))
+    model, meta = build_model(cfg, vocab_size=cfg.train.vocab_size)
+    input_ids = torch.randint(0, meta.vocab_size, (1, 16))
+    logits = model(input_ids)
+    assert logits.shape == (1, 16, meta.vocab_size)
+    stage = model.stage_map["encoder"]
+    loops = stage.stack._resolve_recurrence_loops()
+    assert loops == cfg.arch.modules["encoder"].recurrence.loops.train

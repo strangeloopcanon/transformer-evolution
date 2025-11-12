@@ -6,8 +6,9 @@ import textwrap
 
 import pytest
 
+from evoforge.dsl.api import load_validate_yaml
 from evoforge.dsl.errors import DSLValidationError
-from evoforge.train.simple_trainer import run_micro_train
+from evoforge.train.simple_trainer import _estimate_flops, run_micro_train
 
 
 def test_run_micro_train_smoke(tmp_path):
@@ -38,7 +39,7 @@ def test_run_micro_train_budget_guard(tmp_path):
           ffn: { kind: "dense", mult: 2.0, act: "gelu" }
           pos: { kind: "rope", rope: { theta: 10000, dims: 32 } }
         train:
-          ctx_len: 64
+          ctx_len: 128
           dtype: fp16
           vocab_size: 64
           budget: { tokens_per_step: 32, max_steps: 10 }
@@ -48,3 +49,55 @@ def test_run_micro_train_budget_guard(tmp_path):
     cfg_path.write_text(cfg_text)
     with pytest.raises(DSLValidationError):
         run_micro_train(cfg_path, steps=2, seq_len=32, batch_size=2, device="cpu")
+
+
+def test_recurrence_flops_larger(tmp_path):
+    base = textwrap.dedent(
+        """
+        arch:
+          d_model: 192
+          n_layers: 4
+          norm: RMSNorm
+          mix_unit:
+            kind: "single"
+            mixer: { kind: "Attention", heads: 3, groups: 3, pos: "rope" }
+          ffn: { kind: "dense", mult: 2.0, act: "gelu" }
+          pos: { kind: "rope", rope: { theta: 10000, dims: 32 } }
+        train:
+          ctx_len: 128
+          dtype: fp16
+          vocab_size: 64
+        """
+    )
+    recur = textwrap.dedent(
+        """
+        arch:
+          d_model: 192
+          n_layers: 4
+          norm: RMSNorm
+          mix_unit:
+            kind: "single"
+            mixer: { kind: "Attention", heads: 3, groups: 3, pos: "rope" }
+          ffn: { kind: "dense", mult: 2.0, act: "gelu" }
+          pos: { kind: "rope", rope: { theta: 10000, dims: 32 } }
+          recurrence:
+            prelude: 1
+            body: 2
+            coda: 1
+            adapter: "residual"
+            loops: { train: 3, eval: 2 }
+        train:
+          ctx_len: 128
+          dtype: fp16
+          vocab_size: 64
+        """
+    )
+    base_path = tmp_path / "base.yaml"
+    rec_path = tmp_path / "rec.yaml"
+    base_path.write_text(base)
+    rec_path.write_text(recur)
+    cfg_base = load_validate_yaml(base_path)
+    cfg_rec = load_validate_yaml(rec_path)
+    base_flops = _estimate_flops(cfg_base, tokens=64)
+    rec_flops = _estimate_flops(cfg_rec, tokens=64)
+    assert rec_flops > base_flops * 1.4

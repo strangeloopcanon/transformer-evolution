@@ -26,6 +26,7 @@ This project lets you explore the architectural search space through evolutionar
 - **Advanced Mutations:** Supports both simple hyperparameter tuning and radical, macro-level architectural changes.
 - **Rich Outputs:** Generates YAML snapshots, performance metrics, and lineage visualizations for each run.
 - **Reproducible Results:** Track every candidate and its ancestry, ensuring full transparency and reproducibility.
+- **Depth Recurrence Primitive:** Split any stack (core or pipeline module) into prelude/body/coda segments, loop the body with shared weights, and tune adapters/curricula directly from the DSL.
 
 ---
 
@@ -76,6 +77,8 @@ PYTHONPATH=src python runners/run_evolution.py \
   ```bash
   PYTHONPATH=src python runners/run_evolution.py <seed_dirs...> [options]
   ```
+  - Use `configs/recurrence_stack.yaml` (core recurrence) or `examples/pipeline_recurrence.yaml` (module-level recurrence) as ready-made seeds.
+  - To continue from previous best runs, add `--top-count 4` (optionally point `--top-index` elsewhere) and the driver will pull up to four `top_candidates` from `docs/results_index.json`.
 - **Full Sweep (ASHA → PDH):** Evaluate a fixed set of configurations.
   ```bash
   PYTHONPATH=src python runners/run_experiment.py <config_files...> [options]

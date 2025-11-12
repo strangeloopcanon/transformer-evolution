@@ -1,0 +1,32 @@
+arch:
+  d_model: 512
+  n_layers: 12
+  norm: RMSNorm
+  mix_unit:
+    kind: "route"
+    choices:
+      - { kind: "Attention", heads: 8, groups: 4, stencil: { kind: "sliding", window: 1024 }, pos: "rope" }
+      - { kind: "Retention", heads: 8, chunk: 512, mode: "parallel" }
+    router: { topk: 2, temp: 0.8, balance: 0.05 }
+    merge: "Add"
+  ffn: { kind: "dense", mult: 2.8, act: "swiglu" }
+  pos: { kind: "rope", rope: { theta: 25000, dims: 64, scaling: { type: "yarn", factor: 1.5 } } }
+  kv_policy: { cache: "window", window: 4096, quant: "nf4" }
+  recurrence:
+    prelude: 3
+    body: 6
+    coda: 3
+    adapter: "concat_linear"
+    noise_std: 0.03
+    loops:
+      train: 2
+      eval: 4
+      schedule: { kind: "poisson_lognormal", mean: 2.5, sigma: 0.35, min: 1, max: 6, curriculum: "linear", warmup_steps: 1500, backprop: 6 }
+train:
+  ctx_len: 2048
+  dtype: fp16
+  vocab_size: 65536
+  budget:
+    tokens_per_step: 24576
+    max_steps: 800
+    flops_per_step: 800000000000

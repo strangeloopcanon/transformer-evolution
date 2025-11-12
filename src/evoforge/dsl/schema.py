@@ -35,6 +35,7 @@ DSL_JSON_SCHEMA: dict = {
                 "residual": {"$ref": "#/definitions/residual"},
                 "hierarchy": {"$ref": "#/definitions/hierarchy"},
                 "depth_router": {"$ref": "#/definitions/depth_router"},
+                "recurrence": {"$ref": "#/definitions/recurrence"},
                 "modules": {
                     "type": "object",
                     "additionalProperties": {"$ref": "#/definitions/module"},
@@ -294,6 +295,39 @@ DSL_JSON_SCHEMA: dict = {
                 "min_layers": {"type": "integer"},
             },
         },
+        "recurrence_schedule": {
+            "type": "object",
+            "properties": {
+                "kind": {"enum": ["fixed", "poisson_lognormal"]},
+                "mean": {"type": "number", "minimum": 0},
+                "sigma": {"type": "number", "minimum": 0},
+                "min": {"type": "integer", "minimum": 1},
+                "max": {"type": "integer", "minimum": 1},
+                "curriculum": {"enum": ["none", "linear", "sqrt"]},
+                "warmup_steps": {"type": "integer", "minimum": 1},
+                "backprop": {"type": "integer", "minimum": 1},
+            },
+        },
+        "recurrence_loops": {
+            "type": "object",
+            "properties": {
+                "train": {"type": "integer", "minimum": 1},
+                "eval": {"type": "integer", "minimum": 1},
+                "schedule": {"$ref": "#/definitions/recurrence_schedule"},
+            },
+        },
+        "recurrence": {
+            "type": "object",
+            "properties": {
+                "prelude": {"type": "integer", "minimum": 0},
+                "body": {"type": "integer", "minimum": 1},
+                "coda": {"type": "integer", "minimum": 0},
+                "adapter": {"enum": ["identity", "residual", "concat_linear"]},
+                "noise_std": {"type": "number", "minimum": 0},
+                "loops": {"$ref": "#/definitions/recurrence_loops"},
+            },
+            "required": ["body"],
+        },
         "latent_kv": {
             "type": "object",
             "properties": {
@@ -332,6 +366,7 @@ DSL_JSON_SCHEMA: dict = {
                 "residual": {"$ref": "#/definitions/residual"},
                 "hierarchy": {"$ref": "#/definitions/hierarchy"},
                 "depth_router": {"$ref": "#/definitions/depth_router"},
+                "recurrence": {"$ref": "#/definitions/recurrence"},
                 "latent": {"type": "object"},
                 "output_dim": {"type": "integer"},
                 "budget": {

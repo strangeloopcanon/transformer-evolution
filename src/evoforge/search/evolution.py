@@ -4,7 +4,7 @@ import math
 import random
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Literal
 
 import yaml
 
@@ -23,6 +23,7 @@ class EvolutionCandidate:
     config: DSLConfig
     score: float = float("inf")
     metadata: Dict = field(default_factory=dict)
+    age: int = 0
 
 
 @dataclass
@@ -42,6 +43,9 @@ class EvolutionConfig:
     macro_prob: float = 0.35
     crossover_prob: float = 0.35
     novelty_extra: int = 2
+    # replacement strategy knobs (default off)
+    replacement: Literal["score", "aging"] = "score"
+    overflow_factor: float = 1.0
 
 
 def _prune_none(value):
@@ -146,9 +150,17 @@ def run_evolution(
                 break
         next_gen: List[EvolutionCandidate] = []
         next_gen.extend(parents)
+        # increment age of survivors we directly carry over
+        for p in parents:
+            try:
+                p.age += 1
+            except Exception:
+                pass
 
         # Children from mutations
-        while len(next_gen) < max(0, evo_cfg.population_size - evo_cfg.immigrants):
+        # allow optional overflow to enable age-based trimming
+        target_size = int(math.ceil(evo_cfg.population_size * evo_cfg.overflow_factor))
+        while len(next_gen) < max(0, target_size - evo_cfg.immigrants):
             if len(parents) >= 2 and rng.random() < evo_cfg.crossover_prob:
                 # simple crossover: pick two parents, blend arch fields and borrow modules/pipeline
                 p1, p2 = rng.sample(parents, 2)
@@ -194,7 +206,7 @@ def run_evolution(
                 op_kind = "macro" if used_macro else "mutation"
             variant_path = gen_dir / f"variant_{len(next_gen)}.yaml"
             _write_config(variant_cfg, variant_path)
-            next_gen.append(EvolutionCandidate(path=variant_path, config=variant_cfg))
+            next_gen.append(EvolutionCandidate(path=variant_path, config=variant_cfg, age=0))
             # lineage entry
             if op_kind == "crossover":
                 lineage_records.append(
@@ -224,7 +236,7 @@ def run_evolution(
             immigrant_cfg = rng.choice(muts) if muts else base_cfg
             immigrant_path = gen_dir / f"immigrant_{i}.yaml"
             _write_config(immigrant_cfg, immigrant_path)
-            next_gen.append(EvolutionCandidate(path=immigrant_path, config=immigrant_cfg))
+            next_gen.append(EvolutionCandidate(path=immigrant_path, config=immigrant_cfg, age=0))
             lineage_records.append(
                 {
                     "gen": gen,
@@ -233,6 +245,16 @@ def run_evolution(
                     "parents": [str(base)],
                 }
             )
+
+        # If we generated overflow, trim according to replacement policy
+        if len(next_gen) > evo_cfg.population_size:
+            if evo_cfg.replacement == "aging":
+                # Prefer youth; break ties with better score
+                next_gen.sort(key=lambda c: (c.age, c.score))
+            else:
+                # Default: prefer lower score only
+                next_gen.sort(key=lambda c: c.score)
+            next_gen = next_gen[: evo_cfg.population_size]
 
         population = next_gen
         # backfill scores into lineage records for any known paths in this generation
